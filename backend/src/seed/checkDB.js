@@ -93,7 +93,7 @@ const check = async () => {
   resolutionKBs.forEach(kb => {
     console.log(`  - Resolved Issue: "${kb.issueTitle}"`);
     console.log(`    Known Fixes:`);
-    kb.steps.forEach((step, idx) => console.log(`      ${idx + 1}. ${step}`));
+    (kb.knownFixSteps || []).forEach((step, idx) => console.log(`      ${idx + 1}. ${step}`));
     console.log(`    Times Solved: ${kb.solvedCount}`);
   });
 

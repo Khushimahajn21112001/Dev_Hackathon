@@ -1,74 +1,42 @@
-# Integrate Google Gemini into AI IT Support Agent
-
-This plan outlines the integration of the Google Gemini API into the existing Node.js backend. The goal is to use Gemini for complex reasoning tasks (ticket preview generation, KB article summarization) while preserving the fast, local `@xenova/transformers` model for semantic similarity matching and duplicate detection.
-
-## User Review Required
-
-> [!IMPORTANT]
-> The thresholds you requested for the Xenova semantic search (`>= 0.90` for strong, `0.75-0.89` for possible) are quite high for the `all-MiniLM-L6-v2` model, which naturally produces lower scores (around `0.60-0.70`) for short IT queries. 
-> I recently adjusted the live thresholds to `0.65` (strong) and `0.50` (possible), along with a keyword boost, to make it work correctly in your previous testing. 
-> **Question:** Should I revert the thresholds back to your requested `0.90 / 0.75` in this update, or keep the realistic `0.65 / 0.50` thresholds that are currently working?
-
-> [!NOTE]
-> The Gemini API integration requires a `GEMINI_API_KEY`. You will need to provide this key in the `.env` file after this plan is implemented.
+# Goal Description
+Enhance the AI IT Support Agent's RAG (Retrieval-Augmented Generation) and Knowledge Base matching logic. The system will be upgraded to identify related issue families and abstract root causes, rather than relying solely on semantic embedding similarity (which fails when application names differ). The flow includes metadata extraction when tickets are closed, advanced metadata extraction when a new issue is analyzed, hybrid matching logic, and Gemini-generated RAG answers for the end user.
 
 ## Proposed Changes
 
-### Dependencies
+### 1. Database Schema Updates
+- **ResolutionKnowledgeBase (`backend/src/models/ResolutionKB.js`)**: Add optional fields: `applicationNames`, `errorMessages`, `rootCauseCategory`, `problemFamily`, `policyTool`, `affectedLayer`, `resolutionType`, `tags`.
+- **Ticket (`backend/src/models/Ticket.js`)**: Add RAG metrics to track performance: `attemptedRag`, `attemptedRagKbIds`, `attemptedRagSteps`, `ragFinalScore`, `extractedMetadata`, `userSaidRagFailed`.
 
-#### [NEW] `package.json`
-- Install `@google/generative-ai` package via npm.
+### 2. AI Metadata Extraction on Ticket Closure
+- **`backend/src/routes/ticketRoutes.js`**: Update the `PATCH /close/:id` route. When a support user marks a ticket with `reusableFix: true`, we will call the Gemini API to extract structured JSON metadata (e.g., `applicationNames`, `rootCauseCategory`, `problemFamily`, `policyTool`, `affectedLayer`, `resolutionType`, `tags`) based on the ticket's title, issue description, root cause, and resolution steps. The resulting extracted metadata will be saved directly into the newly created Knowledge Base record. 
 
----
+### 3. User Issue Metadata Extraction & Hybrid RAG Logic
+- **`backend/src/routes/corporateRoutes.js` (`/analyze-issue`)**: 
+  - Before running Xenova embedding similarity, run a Gemini call to extract structured metadata from the user's issue text.
+  - Fetch existing KB records and calculate the Xenova semantic similarity score.
+  - Apply Hybrid Scoring Logic: 
+    - `Final Score = (semantic * 0.45) + (problemFamilyMatch * 0.25) + (rootCauseCategoryMatch * 0.15) + (tagOverlapScore * 0.10) + (categoryMatch * 0.05)`
+  - Evaluate thresholds:
+    - `>= 0.80`: Strong match.
+    - `>= 0.65` and `< 0.80`: Possible match.
+    - `< 0.65`: No match.
+  - If a match is found (`>= 0.65`), use Gemini to generate a response combining the top 3 KBs. It will explain why the issue may be related without claiming it is the exact same issue if applications differ.
+  
+- **`backend/src/routes/corporateRoutes.js` (`/create-ticket`)**: Update this route to accept and store the newly introduced RAG attempt metadata in the `Ticket` database if the user says the RAG response did not resolve their issue.
 
-### Prompts & AI Services
+### 4. Frontend UI Updates
+- **`frontend/src/components/Corporate/RaiseRequest.jsx`**: Modify the component to accept the new `/analyze-issue` response structure. If `ragAnswerAvailable` is true, render a new "Possible Related Resolution Found" card displaying the RAG summary, why it may be related, possible root causes, recommended steps, and buttons to either confirm it worked or proceed to create a ticket. Show a dynamic disclaimer note when the applications differ.
+- **`frontend/src/components/Dashboard/ResolutionKBPage.jsx`**: Update the Admin KB view to include the newly added columns (Problem Family, Root Cause Category, Applications, Tags) and add filtering capability for Problem Family, Root Cause Category, and Assigned Team.
 
-#### [NEW] `backend/src/services/geminiService.js`
-- Initialize the Google Generative AI client using `process.env.GEMINI_API_KEY`.
-- Create a `analyzeTicketIssue` function to process user issues and return a JSON structured preview.
-- Create a `summarizeResolutionForKB` function to convert raw support notes into a clean KB article format.
-
-#### [NEW] `backend/src/prompts/ticketAnalysisPrompt.js`
-- System prompt for analyzing corporate user issues.
-- Instructions to return exact JSON (title, description, category, priority, assigned team).
-- Rules to preserve URLs, domains, and app names exactly, without over-generalizing (e.g. not turning a specific URL issue into a generic Wi-Fi issue).
-- Injects the list of available database Teams so Gemini always suggests a valid team name.
-
-#### [NEW] `backend/src/prompts/resolutionSummaryPrompt.js`
-- System prompt for summarizing raw resolution steps from IT agents.
-- Instructions to return clean JSON (issueTitle, rootCauseSummary, cleanResolutionSteps array, keywords).
-
----
-
-### Route Updates
-
-#### [MODIFY] `backend/src/routes/corporateRoutes.js`
-- **POST `/api/corporate/analyze-issue`**:
-  - Keep the existing Xenova entity extraction and embedding generation.
-  - Inject the Gemini call to generate the `ticketPreview`.
-  - Perform the Xenova cosine similarity search against `ResolutionKB`.
-  - Apply the requested thresholds and entity safety checks.
-  - Return either the `matchedKb` (if similarity crosses the threshold) OR the Gemini-generated `ticketPreview` (if no strong KB matches).
-  - Use the Gemini-suggested team name to look up the exact `Team` ID from the database for accurate routing.
-
----
-
-### Utilities
-
-#### [MODIFY] `backend/src/utils/kbHelper.js`
-- Update `upsertResolutionKB` to call `geminiService.summarizeResolutionForKB`.
-- Instead of just saving the raw ticket `rootCause` and `resolutionSteps`, it will pass them to Gemini to get a clean, reusable KB summary format.
-- Generate the Xenova embedding on the newly summarized text.
-
-#### [MODIFY] `README.md`
-- Add instructions on setting up `GEMINI_API_KEY`.
-- Document the dual-model architecture: Gemini (reasoning, rephrasing) + Xenova (similarity matching).
+## Open Questions
+- Is there a specific Gemini model version (e.g. `gemini-1.5-pro` or `gemini-1.5-flash`) that you prefer using for the structured metadata extraction to balance latency and accuracy?
+- For the Admin KB view, do you want the filters to be simple text inputs, or should they be dropdowns aggregating the unique values dynamically from the backend?
 
 ## Verification Plan
+### Automated Tests
+- Post an issue to `/analyze-issue` and verify the hybrid score calculation when problem families overlap but application names do not.
+- Verify `PATCH /close/:id` returns a successfully populated KB object with AI-extracted metadata.
 
-### Automated/Manual Testing
-- Start the backend server and ensure it connects to Gemini without errors.
-- Send the test payload: `"graqa url is not opening on company wifi"` to `/api/corporate/analyze-issue`.
-- Verify the response contains a Gemini-structured ticket preview preserving the "GRAQA URL" instead of a generic Wi-Fi issue.
-- Verify that a known issue (e.g. "VPN is not connecting") still successfully returns the Xenova KB match instead of a new ticket preview.
-- Resolve a test ticket and verify the resulting KB article in the database contains clean, Gemini-formatted arrays for `knownFixSteps` instead of raw text.
+### Manual Verification
+- Simulate Test Case 1: Close a ticket for Chrome blocked by ManageEngine. Then raise an issue for CMD blocked by ManageEngine and verify the "Possible Related Resolution" card appears in the UI with a strong hybrid score.
+- Ensure the normal ticket flow still succeeds if the Hybrid RAG score falls below 0.65.

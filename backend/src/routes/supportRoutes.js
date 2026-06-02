@@ -133,7 +133,7 @@ router.patch('/tickets/:ticketId/provide-resolution', async (req, res) => {
     // Notify the corporate user with the resolution steps
     await notify(
       ticket.raisedBy,
-      `Support has resolved your ticket ${ticket.ticketNumber}. Resolution: ${resolutionSteps.substring(0, 120)}... Please confirm if your issue is resolved.`,
+      `Resolution steps have been provided for Ticket #${ticket.ticketNumber}. Please confirm if the issue is resolved.`,
       ticket._id
     );
 
@@ -188,9 +188,18 @@ router.patch('/tickets/:ticketId/force-close', async (req, res) => {
     // Notify corporate user
     await notify(
       ticket.raisedBy,
-      `Your ticket ${ticket.ticketNumber} has been force-closed. Reason: ${forceCloseReason}`,
+      `Your ticket #${ticket.ticketNumber} has been closed successfully.`,
       ticket._id
     );
+
+    // Notify admins
+    const User = require('../models/User');
+    const supportUserObj = await User.findById(supportUserId);
+    const supportName = supportUserObj ? (supportUserObj.name || supportUserObj.username) : 'Support User';
+    const admins = await User.find({ role: 'Admin' });
+    for (const admin of admins) {
+      await notify(admin._id, `Ticket #${ticket.ticketNumber} has been closed by ${supportName}`, ticket._id);
+    }
 
     // Try KB upsert if data is available
     await upsertResolutionKB(ticket);

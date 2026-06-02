@@ -8,6 +8,19 @@ const TicketSchema = new mongoose.Schema({
   issueDescription: { type: String, required: true },
   originalUserInput: { type: String },
   extractedEntities: { type: mongoose.Schema.Types.Mixed, default: {} },
+
+  // ── User Edit Tracking ─────────────────────────────────────────────────────
+  userEditedTitle:       { type: String, default: '' },
+  userEditedDescription: { type: String, default: '' },
+  userEditedCategory:    { type: String, default: '' },
+  userEditedTeam:        { type: String, default: '' },
+  userEditedPriority:    { type: String, default: '' },
+  additionalComments:    { type: String, default: '' },
+  aiPreviewEdited:       { type: Boolean, default: false },
+  reanalysisRequested:   { type: Boolean, default: false },
+  routingConfidence:     { type: String, default: '' },
+  routingReason:         { type: String, default: '' },
+
   category:       { type: String },
 
   // ── Assignment ────────────────────────────────────────────────────────────
@@ -46,6 +59,14 @@ const TicketSchema = new mongoose.Schema({
   },
   userReopenRemarks: { type: String, default: '' }, // corporate user's reopen remarks
 
+  // 🤖 RAG Details
+  attemptedRag:      { type: Boolean, default: false },
+  attemptedRagKbIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'ResolutionKB' }],
+  attemptedRagSteps: [{ type: String }],
+  ragFinalScore:     { type: Number },
+  extractedMetadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+  userSaidRagFailed: { type: Boolean, default: false },
+
   // ── Close Details ─────────────────────────────────────────────────────────
   closedAt:         { type: Date },
   closedBy:         { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -58,6 +79,14 @@ const TicketSchema = new mongoose.Schema({
   userSaidKbFailed:        { type: Boolean, default: false },
   matchedKbId:             { type: mongoose.Schema.Types.ObjectId, ref: 'ResolutionKB' },
   kbSimilarityScore:       { type: Number },
+
+  // ── RAG Tracking ──────────────────────────────────────────────────────────
+  ragUsed:                 { type: Boolean, default: false },
+  ragContextIds:           [{ type: mongoose.Schema.Types.ObjectId, ref: 'ResolutionKB' }],
+  ragSimilarityScores:     [{ type: Number }],
+  attemptedRagSteps:       [{ type: String }],
+  ragFailed:               { type: Boolean, default: false },
+  ragConfidence:           { type: String, default: '' },
 
   // ── Timestamps ────────────────────────────────────────────────────────────
   createdAt: { type: Date, default: Date.now },

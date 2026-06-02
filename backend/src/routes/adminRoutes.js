@@ -211,6 +211,34 @@ router.patch('/users/:id/status', async (req, res) => {
   }
 });
 
+// DELETE /api/admin/users/:id - Delete a user
+router.delete('/users/:id', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (user.role === 'Admin') {
+      return res.status(403).json({ error: 'Cannot delete an Admin user' });
+    }
+
+    await User.findByIdAndDelete(req.params.id);
+    
+    // Clean up references
+    if (user.role === 'Team Lead') {
+      await Team.updateMany({ teamLead: user._id }, { teamLead: null });
+    }
+    if (user.role === 'Support User') {
+      await Ticket.updateMany({ assignedTo: user._id }, { assignedTo: null, status: 'Open' });
+    }
+
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: error.message || 'Server error' });
+  }
+});
+
 // --------------------------------------------------------------------------
 // TICKETS AND KB ENDPOINTS
 // --------------------------------------------------------------------------

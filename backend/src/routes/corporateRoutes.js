@@ -12,6 +12,8 @@ const TicketLog    = require('../models/TicketLog');
 const { upsertResolutionKB } = require('../utils/kbHelper');
 const { generateEmbedding, extractEntities, cosineSimilarity, checkEntitySafety } = require('../utils/aiMatching');
 const { analyzeTicketIssue } = require('../services/geminiService');
+const ActivityLog = require('../models/ActivityLog');
+const { retrieveRelevantResolutions, buildRagContext, buildOfflineFallback, generateRagAnswer, updateRagSuccess, updateRagFailure, RAG_MATCH_THRESHOLD, deduplicateSteps } = require('../services/ragService');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -23,6 +25,14 @@ async function logTicketAction({ ticketId, action, oldStatus, newStatus, perform
 async function notify(userId, message, ticketId) {
   if (!userId) return;
   await Notification.create({ userId, message, ticketId });
+}
+
+async function notifyAdmins(message, ticketId) {
+  const User = require('../models/User');
+  const admins = await User.find({ role: 'Admin' });
+  for (const admin of admins) {
+    await notify(admin._id, message, ticketId);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -62,105 +72,261 @@ function extractRawWords(text) {
 // Professional ticket title/description mapping
 // ─────────────────────────────────────────────────────────────────────────────
 const ISSUE_TITLE_MAP = {
-  vpn:            { title: 'VPN Connectivity Issue',                  description: 'User is unable to connect to VPN / remote access service.' },
-  'remote access':{ title: 'Remote Access Issue',                     description: 'User is experiencing issues with remote access connectivity.' },
-  jira:           { title: 'Jira Application Issue',                  description: 'User is unable to access or use Jira application.' },
-  confluence:     { title: 'Confluence Application Issue',            description: 'User is unable to access or use Confluence application.' },
-  bitbucket:      { title: 'Bitbucket Application Issue',             description: 'User is unable to access or use Bitbucket application.' },
-  laptop:         { title: 'Laptop Performance Issue',                description: 'User is experiencing performance issues with their laptop.' },
-  'blue screen':  { title: 'Blue Screen of Death (BSOD) Issue',       description: 'User is encountering blue screen errors on their workstation.' },
-  slow:           { title: 'System Performance Degradation',          description: 'User reports that their system is running slower than expected.' },
-  freeze:         { title: 'System Freeze Issue',                     description: 'User reports that their system is freezing intermittently.' },
-  wifi:           { title: 'Wi-Fi Connectivity Issue',                description: 'User is unable to connect to the wireless network.' },
-  'wi-fi':        { title: 'Wi-Fi Connectivity Issue',                description: 'User is unable to connect to the wireless network.' },
-  internet:       { title: 'Internet / Website Accessibility Issue',   description: 'User is unable to access an internet resource or website.' },
-  accessible:     { title: 'Resource Accessibility Issue',            description: 'User is unable to access a specific resource or service over the network.' },
-  network:        { title: 'Network Connectivity Issue',              description: 'User is experiencing general network connectivity problems.' },
-  dns:            { title: 'DNS Resolution Issue',                    description: 'User is experiencing DNS resolution failures.' },
-  email:          { title: 'Email Service Issue',                     description: 'User is unable to send or receive emails.' },
-  password:       { title: 'Password Reset Request',                  description: 'User requires assistance with password reset.' },
-  printer:        { title: 'Printer Issue',                           description: 'User is unable to print or connect to the printer.' },
+  // VPN / Remote Access
+  vpn:            { title: 'VPN Connection Failing or Unable to Connect',         description: 'User is unable to establish a VPN connection to the corporate network.', category: 'Network / Connectivity' },
+  'remote access':{ title: 'Remote Access Connection Not Working',                description: 'User is experiencing issues connecting via remote access tools.', category: 'Network / Connectivity' },
+
+  // Applications
+  jira:           { title: 'Jira Application Not Accessible or Responding',       description: 'User is unable to access or use the Jira application.', category: 'Application Support' },
+  confluence:     { title: 'Confluence Page Not Loading or Inaccessible',          description: 'User is unable to access or use the Confluence application.', category: 'Application Support' },
+  bitbucket:      { title: 'Bitbucket Repository Access or Connectivity Issue',   description: 'User is unable to access or use the Bitbucket application.', category: 'Application Support' },
+  'power bi':     { title: 'Power BI Application Fails to Launch',                description: 'User is unable to open the Power BI application on their device.', category: 'Application Support' },
+  powerbi:        { title: 'Power BI Application Fails to Launch',                description: 'User is unable to open the Power BI application on their device.', category: 'Application Support' },
+  outlook:        { title: 'Outlook Email Client Not Working or Not Syncing',      description: 'User is unable to send/receive emails or Outlook is not syncing properly.', category: 'Application Support' },
+  teams:          { title: 'Microsoft Teams Not Loading or Crashing',              description: 'User is experiencing issues with Microsoft Teams — it is not loading or keeps crashing.', category: 'Application Support' },
+  chrome:         { title: 'Chrome Browser Not Opening or Blocked',                description: 'User is unable to open or use the Chrome browser on their device.', category: 'Desktop / Endpoint Support' },
+  excel:          { title: 'Excel Application Not Responding or Crashing',         description: 'User is experiencing issues with Microsoft Excel — it is not responding or crashing.', category: 'Application Support' },
+
+  // Endpoint / Desktop
+  laptop:         { title: 'Laptop Running Slow or Not Responding Properly',       description: 'User is experiencing slow laptop performance — applications are taking longer to open and system response is delayed.', category: 'Desktop / Endpoint Support' },
+  'blue screen':  { title: 'Blue Screen of Death (BSOD) Error on Workstation',     description: 'User is encountering blue screen (BSOD) errors on their workstation, causing unexpected reboots.', category: 'Desktop / Endpoint Support' },
+  slow:           { title: 'System Running Slow and Delayed Response',             description: 'User reports that their system is running significantly slower than expected, affecting daily work.', category: 'Desktop / Endpoint Support' },
+  freeze:         { title: 'System Freezing Intermittently During Use',             description: 'User reports that their system is freezing intermittently during regular work, requiring forced restarts.', category: 'Desktop / Endpoint Support' },
+  hang:           { title: 'System Hanging and Becoming Unresponsive',             description: 'User reports that their system hangs and becomes unresponsive, requiring a restart.', category: 'Desktop / Endpoint Support' },
+
+  // Network
+  wifi:           { title: 'Unable to Connect to Company Wi-Fi Network',           description: 'User is unable to connect to the corporate wireless network on their device.', category: 'Network / Connectivity' },
+  'wi-fi':        { title: 'Unable to Connect to Company Wi-Fi Network',           description: 'User is unable to connect to the corporate wireless network on their device.', category: 'Network / Connectivity' },
+  internet:       { title: 'Internet or Website Not Accessible on Corporate Network', description: 'User is unable to access an internet resource or website while on the corporate network.', category: 'Network / Connectivity' },
+  network:        { title: 'Network Connection Dropping or Not Working',           description: 'User is experiencing network connectivity problems — connection is intermittent or unavailable.', category: 'Network / Connectivity' },
+  dns:            { title: 'DNS Resolution Failing for Specific Domains',          description: 'User is experiencing DNS resolution failures — certain websites or services are not resolving.', category: 'Network / Connectivity' },
+
+  // Identity & Access
+  password:       { title: 'Password Reset or Account Unlock Required',            description: 'User requires assistance with resetting their password or unlocking their account.', category: 'Identity & Access' },
+  'access denied':{ title: 'Access Denied Error When Opening Application or Resource', description: 'User is receiving an Access Denied error when trying to open an application or access a resource.', category: 'Identity & Access' },
+  locked:         { title: 'User Account Locked Out',                              description: 'User account has been locked out and they are unable to log in to their system.', category: 'Identity & Access' },
+
+  // Peripherals
+  email:          { title: 'Email Not Sending or Receiving Messages',              description: 'User is unable to send or receive emails through their email client.', category: 'Application Support' },
+  printer:        { title: 'Printer Not Responding or Unable to Print',            description: 'User is unable to print documents — the printer is not responding or not detected by the system.', category: 'Desktop / Endpoint Support' },
 };
 
 function generateTicketDetails(issueText) {
   const lowerText = issueText.toLowerCase();
   const sortedKeys = Object.keys(ISSUE_TITLE_MAP).sort((a, b) => b.length - a.length);
   for (const key of sortedKeys) {
-    if (lowerText.includes(key)) return ISSUE_TITLE_MAP[key];
+    if (lowerText.includes(key)) {
+      const entry = ISSUE_TITLE_MAP[key];
+      return {
+        title: entry.title,
+        description: entry.description,
+        category: entry.category || 'Service Desk',
+      };
+    }
   }
-  const cleaned     = issueText.trim().replace(/\s+/g, ' ');
+  // Smart fallback: capitalize and clean user input as the title
+  const cleaned = issueText.trim().replace(/\s+/g, ' ');
   const capitalized = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  const title = capitalized.length > 80 ? capitalized.substring(0, 77) + '...' : capitalized;
   return {
-    title:       capitalized.length > 60 ? capitalized.substring(0, 60) + '...' : capitalized,
-    description: `User reported: ${cleaned}`,
+    title,
+    description: `User reported: "${cleaned}". Please investigate and assist the user.`,
+    category: 'Service Desk',
   };
 }
 
+// GET /api/corporate/teams - Get active teams for dropdown
+router.get('/teams', async (req, res) => {
+  try {
+    const teams = await Team.find({ status: 'Active' }, 'name _id');
+    return res.json({ teams });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to fetch teams.' });
+  }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/corporate/analyze-issue
-// 1. Check ResolutionKB FIRST — if match found, return KB suggestion
-// 2. Check for duplicate open tickets for this user
-// 3. Fall back to IssueKB team routing → ticket preview
+// OPTIMIZED FLOW:
+//   1. Duplicate open-ticket check (no AI)
+//   2. Xenova embedding → MongoDB KB search (no Gemini)
+//   3. If score >= 0.65 → send top 3 KB records to Gemini for summarization
+//   4. If Gemini fails/times out → offline KB fallback
+//   5. If no KB match → Gemini ticket preview (lazy, only when needed)
+// Gemini is ONLY used as a "response writer", never for searching.
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/analyze-issue', async (req, res) => {
+  const totalStart = Date.now();
+  const timing = { duplicateCheckMs: 0, embeddingMs: 0, kbSearchMs: 0, geminiMs: 0, totalMs: 0 };
+
   try {
     const { userId, issueText, forceDuplicate } = req.body;
     if (!userId || !issueText) return res.status(400).json({ error: 'userId and issueText are required.' });
 
-    const rawWords   = extractRawWords(issueText);
     const cleanWords = extractWords(issueText);
     const userEntities = extractEntities(issueText);
-    
-    // Fetch available teams for Gemini
-    const allTeams = await Team.find({}, 'name');
+
+    // ── Step 1: Duplicate open-ticket detection (no AI) ────────────────────
+    const dupStart = Date.now();
+    if (!forceDuplicate) {
+      const userTickets = await Ticket.find({
+        raisedBy: userId,
+        status: { $in: ['Open', 'Assigned', 'In Progress', 'Pending User Confirmation'] },
+      }).populate('assignedTo', 'username');
+
+      for (const ticket of userTickets) {
+        const ticketWords = extractWords(
+          `${ticket.ticketTitle} ${ticket.issueDescription} ${ticket.originalUserInput || ''}`
+        );
+        const matchCount = cleanWords.filter(w => ticketWords.includes(w)).length;
+        if (matchCount > 3) {
+          timing.duplicateCheckMs = Date.now() - dupStart;
+          timing.totalMs = Date.now() - totalStart;
+          console.log(`[PERF] analyze-issue: duplicate found`, timing);
+          return res.json({
+            duplicateFound: true,
+            ragUsed: false,
+            geminiUsed: false,
+            aiFallbackUsed: false,
+            message: 'A similar ticket has already been raised.',
+            ticketNumber: ticket.ticketNumber,
+            ticketTitle:  ticket.ticketTitle,
+            status:       ticket.status,
+            assignedTo:   ticket.assignedTo?.username || 'Unassigned',
+            createdAt:    ticket.createdAt,
+            timing
+          });
+        }
+      }
+    }
+    timing.duplicateCheckMs = Date.now() - dupStart;
+
+    // ── Step 2: Xenova Semantic Search + KB Retrieval (NO Gemini) ───────────
+    let ragUsed = false;
+    let geminiUsed = false;
+    let aiFallbackUsed = false;
+    let matchScore = 0;
+
+    if (!forceDuplicate) {
+      const searchResult = await retrieveRelevantResolutions(issueText);
+      const relevantRecords = searchResult.records;
+      timing.embeddingMs = searchResult.embeddingMs;
+      timing.kbSearchMs = searchResult.kbSearchMs;
+
+      // Check if top match meets threshold
+      if (relevantRecords.length > 0 && relevantRecords[0].score >= RAG_MATCH_THRESHOLD) {
+        ragUsed = true;
+        matchScore = relevantRecords[0].score;
+
+        // Determine match strength
+        const matchType = matchScore >= 0.80 ? 'strong' : 'possible';
+        let ragResponse = null;
+
+        if (matchType === 'strong') {
+          // ── Step 3: Gemini summarization (ONLY role: writer) ─────────────────
+          const geminiStart = Date.now();
+          const context = buildRagContext(relevantRecords);
+          ragResponse = await generateRagAnswer(issueText, context);
+          timing.geminiMs = Date.now() - geminiStart;
+
+          if (ragResponse && ragResponse.ragAnswerAvailable) {
+            geminiUsed = true;
+          } else {
+            // ── Step 4: Offline KB fallback (Gemini failed/timed out) ──────────
+            console.log('[RAG] Gemini failed/timed out. Using offline KB fallback.');
+            ragResponse = buildOfflineFallback(relevantRecords);
+            aiFallbackUsed = true;
+          }
+        } else {
+          // Possible Match (0.60 - 0.79) - Ask for confirmation
+          console.log('[RAG] Possible match detected. Asking for user confirmation.');
+          ragResponse = {
+            ragAnswerAvailable: true,
+            summary: `We found a known issue that might be related: "${relevantRecords[0].kb.issueTitle}". Is this what you are experiencing?`,
+            recommendedSteps: deduplicateSteps(relevantRecords[0].kb.knownFixSteps || []),
+            possibleRootCauses: [relevantRecords[0].kb.rootCause || relevantRecords[0].kb.rootCauseCategory || 'Unknown'],
+            recommendedTeam: relevantRecords[0].kb.assignedTeam?.name || '',
+            confidence: 'Medium',
+            requiresConfirmation: true
+          };
+        }
+
+        // Fetch team info for the response
+        let fallbackTeam = await Team.findOne({ name: /service desk/i, status: 'Active' });
+        if (!fallbackTeam) fallbackTeam = await Team.findOne({ status: 'Active' });
+        const finalTeamName = fallbackTeam?.name || 'Service Desk';
+
+        timing.totalMs = Date.now() - totalStart;
+        console.log(`[PERF] analyze-issue: RAG response`, { ragUsed, geminiUsed, aiFallbackUsed, matchScore: matchScore.toFixed(3), ...timing });
+
+        return res.json({
+          duplicateFound: false,
+          ragUsed,
+          geminiUsed,
+          aiFallbackUsed,
+          ragAnswerAvailable: true,
+          matchType,
+          matchScore,
+          ragResponse: {
+            ...ragResponse,
+            recommendedTeam: ragResponse.recommendedTeam || finalTeamName
+          },
+          ragContext: relevantRecords.map(r => ({
+            kbId: r.kb._id,
+            issueTitle: r.kb.issueTitle,
+            similarityScore: r.semanticScore,
+            finalScore: r.score,
+            problemFamily: r.kb.problemFamily,
+            rootCauseCategory: r.kb.rootCauseCategory
+          })),
+          timing
+        });
+      }
+    }
+
+    // ── Step 5: No KB match → Ticket Preview ────────────────────────────────
+    // Only now call Gemini for ticket classification (lazy — avoids Gemini if RAG handled it)
+    const allTeams = await Team.find({ status: 'Active' }, 'name');
     const availableTeamNames = allTeams.map(t => t.name);
 
-    // Run Gemini and Xenova embedding concurrently for speed
-    let userEmbedding;
-    let geminiAnalysis;
+    let geminiAnalysis = null;
+    const geminiStart = Date.now();
     try {
-      const results = await Promise.all([
-        generateEmbedding(issueText),
-        analyzeTicketIssue(issueText, availableTeamNames)
-      ]);
-      userEmbedding = results[0];
-      geminiAnalysis = results[1];
+      geminiAnalysis = await analyzeTicketIssue(issueText, availableTeamNames);
+      geminiUsed = true;
     } catch (err) {
-      console.error('AI Processing error:', err);
-      // Set fallback Geminis analysis with minimal data
-      geminiAnalysis = null;
+      console.error('[PERF] Gemini ticket analysis failed:', err.message);
     }
-    // If Gemini failed, ensure we have a safe fallback object
+    timing.geminiMs = Date.now() - geminiStart;
+
+    // Fallback if Gemini failed
     if (!geminiAnalysis) {
-      // Fallback to generic fields
-      const fallbackTeam = await Team.findOne({ name: 'Support Team' }) || await Team.findOne();
+      const fallbackTeam = await Team.findOne({ name: 'Support Team', status: 'Active' }) || await Team.findOne({ status: 'Active' });
+      const generated = generateTicketDetails(issueText);
       geminiAnalysis = {
         assignedTeamSuggestion: fallbackTeam ? fallbackTeam.name : 'Support Team',
-        ticketTitle: 'Generic Issue',
-        ticketDescription: issueText,
-        category: 'General',
+        ticketTitle: generated.title,
+        ticketDescription: generated.description,
+        category: generated.category || 'Service Desk',
         priority: 'Medium',
       };
+      aiFallbackUsed = true;
     }
 
-    // -------------------------------
-    // New Team Routing Logic (Keyword + Semantic)
-    // -------------------------------
+    // Team routing: keyword rules → semantic rules → Gemini suggestion → fallback
     const TeamRoutingRule = require('../models/TeamRoutingRule');
     const activeRules = await TeamRoutingRule.find({ status: 'Active' });
 
-    // Helper to normalize text
     const normalize = txt => txt.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
     const issueWords = normalize(issueText).split(/\s+/).filter(Boolean);
 
-    // Keyword matching
     let bestKeywordScore = 0;
     let bestKeywordRule = null;
     for (const rule of activeRules) {
       const ruleKeywords = (rule.keywords || []).map(k => k.toLowerCase());
-      const matchCount = issueWords.filter(w => ruleKeywords.includes(w)).length;
-      if (matchCount > bestKeywordScore) {
-        bestKeywordScore = matchCount;
+      const mc = issueWords.filter(w => ruleKeywords.includes(w)).length;
+      if (mc > bestKeywordScore) {
+        bestKeywordScore = mc;
         bestKeywordRule = rule;
       }
     }
@@ -175,158 +341,58 @@ router.post('/analyze-issue', async (req, res) => {
       matchedKeywords = bestKeywordRule.keywords.filter(k => issueWords.includes(k.toLowerCase()));
     } else {
       // Semantic similarity fallback using example embeddings
-      let bestSim = -1;
-      for (const rule of activeRules) {
-        if (!rule.exampleEmbeddings || rule.exampleEmbeddings.length === 0) continue;
-        for (const emb of rule.exampleEmbeddings) {
-          const sim = cosineSimilarity(userEmbedding, emb);
-          if (sim > bestSim) {
-            bestSim = sim;
-            matchedRule = rule;
+      // Generate embedding only if we don't already have one from RAG search
+      let userEmbedding;
+      try {
+        userEmbedding = await generateEmbedding(issueText);
+      } catch (e) {
+        userEmbedding = null;
+      }
+      if (userEmbedding) {
+        let bestSim = -1;
+        for (const rule of activeRules) {
+          if (!rule.exampleEmbeddings || rule.exampleEmbeddings.length === 0) continue;
+          for (const emb of rule.exampleEmbeddings) {
+            const sim = cosineSimilarity(userEmbedding, emb);
+            if (sim > bestSim) {
+              bestSim = sim;
+              matchedRule = rule;
+            }
           }
         }
-      }
-      if (matchedRule) {
-        confidenceScore = bestSim;
+        if (matchedRule) confidenceScore = bestSim;
       }
     }
 
-    // Fallback to Service Desk team if no rule matched
-    let fallbackTeam = await Team.findOne({ name: /service desk/i });
-    if (!fallbackTeam) fallbackTeam = await Team.findOne();
+    let fallbackTeam = await Team.findOne({ name: /service desk/i, status: 'Active' });
+    if (!fallbackTeam) fallbackTeam = await Team.findOne({ status: 'Active' });
 
-    const finalTeamId = matchedRule ? matchedRule.teamId : fallbackTeam?._id || null;
-    const finalTeamName = matchedRule ? matchedRule.teamName : fallbackTeam?.name || 'Service Desk';
-
-    // ── Step 1: Search ResolutionKB first using embeddings ──────────────────
-    if (!forceDuplicate) {
-      const allKbs = await ResolutionKB.find({ knownFixSteps: { $not: { $size: 0 } } })
-        .populate('assignedTeam', 'name');
-
-      let bestKb = null;
-      let bestKbScore = -1;
-
-      for (const kb of allKbs) {
-        if (kb.embedding && kb.embedding.length > 0) {
-          let score = cosineSimilarity(userEmbedding, kb.embedding);
-
-          // ── Keyword boost ──────────────────────────────────────────────
-          // MiniLM gives low scores (~0.60-0.65) for short phrases.
-          // Boost when user words appear in KB title/category/symptoms.
-          const stopwords = new Set([
-            'the', 'and', 'is', 'not', 'cannot', 'can', 'cant', 'able', 'unable', 'to', 'in', 'into', 'on', 'at', 'with', 'it', 'shows', 
-            'site', 'be', 'reached', 'opening', 'application', 'url', 'issue', 'error', 'network', 'login', 'access', 
-            'working', 'credentials', 'portal', 'check', 'please', 'after', 'even', 'entering', 'correct', 'am', 'i', 'my'
-          ]);
-          const userWords = issueText.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/);
-          const kbSearchText = [
-            kb.issueTitle,
-            kb.category,
-            ...(kb.symptoms || []),
-            ...(kb.keywords || []),
-          ].join(' ').toLowerCase();
-          const matchingWords = userWords.filter(w => w.length > 2 && !stopwords.has(w) && kbSearchText.includes(w));
-          const keywordBoost = Math.min(matchingWords.length * 0.08, 0.25);
-          score += keywordBoost;
-
-          // ── Entity safety check ────────────────────────────────────────
-          const isSafe = checkEntitySafety(userEntities, kb.entities || {});
-          if (!isSafe) {
-            score -= 0.3; // Penalize conflicting entities
-          }
-
-          if (score > bestKbScore) {
-            bestKbScore = score;
-            bestKb = kb;
-          }
-        }
-      }
-
-      // Thresholds adjusted for MiniLM short-text scores (boosted with keywords):
-      // strong >= 0.65, possible >= 0.50
-      if (bestKb) {
-        const payload = {
-          _id:          bestKb._id,
-          issueTitle:   bestKb.issueTitle,
-          category:     bestKb.category,
-          rootCause:    bestKb.rootCause,
-          knownFixSteps: bestKb.knownFixSteps,
-          successRate:  bestKb.successRate,
-          assignedTeam: bestKb.assignedTeam?.name || 'Support Team',
-          assignedTeamId: bestKb.assignedTeam?._id || null,
-        };
-
-        if (bestKbScore >= 0.65) {
-          return res.json({
-            kbMatchFound: true,
-            matchType: 'strong',
-            similarityScore: bestKbScore,
-            message: 'Strong similar issue found. Please try the below steps first.',
-            matchedKb: payload,
-            geminiAnalysis // Provide this so frontend can create the ticket easily if needed
-          });
-        } else if (bestKbScore >= 0.50) {
-          return res.json({
-            kbMatchFound: true,
-            matchType: 'possible',
-            similarityScore: bestKbScore,
-            message: 'A possibly similar issue was found. Please confirm if this looks related.',
-            matchedKb: payload,
-            geminiAnalysis // Provide this so frontend can create the ticket easily if needed
-          });
-        }
-      }
-    }
-
-    // ── Step 2: Duplicate open-ticket detection ────────────────────────────
-    if (!forceDuplicate) {
-      const userTickets = await Ticket.find({
-        raisedBy: userId,
-        status: { $in: ['Open', 'Assigned', 'In Progress', 'Pending User Confirmation'] },
-      }).populate('assignedTo', 'username');
-
-      for (const ticket of userTickets) {
-        const ticketWords = extractWords(
-          `${ticket.ticketTitle} ${ticket.issueDescription} ${ticket.originalUserInput || ''}`
-        );
-        const matchCount = cleanWords.filter(w => ticketWords.includes(w)).length;
-        if (matchCount > 3) {
-          return res.json({
-            duplicateFound: true,
-            message: 'A similar ticket has already been raised.',
-            ticketNumber: ticket.ticketNumber,
-            ticketTitle:  ticket.ticketTitle,
-            status:       ticket.status,
-            assignedTo:   ticket.assignedTo?.username || 'Unassigned',
-            createdAt:    ticket.createdAt,
-          });
-        }
-      }
-    }
-
-    // ── Step 3: Map Gemini's suggested team to a real Team ID ──────────────
+    // Map Gemini's suggested team to a real Team ID
     let matchedTeamId = null;
+    let matchedTeamName = null;
     if (geminiAnalysis.assignedTeamSuggestion) {
       const matchedTeam = allTeams.find(t => t.name.toLowerCase() === geminiAnalysis.assignedTeamSuggestion.toLowerCase());
       if (matchedTeam) {
         matchedTeamId = matchedTeam._id;
+        matchedTeamName = matchedTeam.name;
       }
     }
-    
-    // Fallback if Gemini suggested an invalid team
     if (!matchedTeamId) {
-      const fallbackTeam = allTeams.find(t => t.name === 'Desktop Support Team') || allTeams[0];
-      matchedTeamId = fallbackTeam ? fallbackTeam._id : null;
-      geminiAnalysis.assignedTeamSuggestion = fallbackTeam ? fallbackTeam.name : 'Unassigned';
+      const fb = allTeams.find(t => t.name === 'Desktop Support Team') || allTeams[0];
+      matchedTeamId = fb ? fb._id : null;
+      matchedTeamName = fb ? fb.name : 'Unassigned';
     }
 
-    // ── Step 4: Build ticket preview from Gemini ───────────────────────────
+    const assignedTeamToUse = matchedRule ? matchedRule.teamName : matchedTeamName;
+    const assignedTeamIdToUse = matchedRule ? matchedRule.teamId : matchedTeamId;
+
+    // Build ticket preview
     const ticketPreview = {
       ticketTitle:       geminiAnalysis.ticketTitle,
       ticketDescription: geminiAnalysis.ticketDescription,
       category:          geminiAnalysis.category,
-      assignedTeam:      finalTeamName,
-      assignedTeamId:    finalTeamId,
+      assignedTeam:      assignedTeamToUse,
+      assignedTeamId:    assignedTeamIdToUse,
       priority:          geminiAnalysis.priority,
       originalUserInput: issueText,
       extractedEntities: userEntities,
@@ -334,7 +400,18 @@ router.post('/analyze-issue', async (req, res) => {
       confidenceScore:   confidenceScore
     };
 
-    return res.json({ duplicateFound: false, kbMatchFound: false, ticketPreview });
+    timing.totalMs = Date.now() - totalStart;
+    console.log(`[PERF] analyze-issue: ticket preview`, { ragUsed, geminiUsed, aiFallbackUsed, ...timing });
+
+    return res.json({
+      duplicateFound: false,
+      ragUsed,
+      geminiUsed,
+      aiFallbackUsed,
+      kbMatchFound: false,
+      ticketPreview,
+      timing
+    });
   } catch (err) {
     console.error('analyze-issue error:', err);
     return res.status(500).json({ error: 'Internal server error.' });
@@ -347,7 +424,7 @@ router.post('/analyze-issue', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/create-ticket', async (req, res) => {
   try {
-    const { userId, ticketTitle, ticketDescription, originalUserInput, category, assignedTeamId, priority, extractedEntities, matchedKbId, kbSimilarityScore } = req.body;
+    const { userId, ticketTitle, ticketDescription, originalUserInput, category, assignedTeamId, priority, extractedEntities, matchedKbId, kbSimilarityScore, userEditedTitle, userEditedDescription, userEditedCategory, userEditedTeam, userEditedPriority, additionalComments, aiPreviewEdited, reanalysisRequested, routingConfidence, routingReason } = req.body;
     if (!userId || !ticketTitle || !ticketDescription) {
       return res.status(400).json({ error: 'userId, ticketTitle, and ticketDescription are required.' });
     }
@@ -361,6 +438,16 @@ router.post('/create-ticket', async (req, res) => {
       extractedEntities: extractedEntities || {},
       matchedKbId:      matchedKbId || null,
       kbSimilarityScore:kbSimilarityScore || null,
+      userEditedTitle:       userEditedTitle || '',
+      userEditedDescription: userEditedDescription || '',
+      userEditedCategory:    userEditedCategory || '',
+      userEditedTeam:        userEditedTeam || '',
+      userEditedPriority:    userEditedPriority || '',
+      additionalComments:    additionalComments || '',
+      aiPreviewEdited:       aiPreviewEdited || false,
+      reanalysisRequested:   reanalysisRequested || false,
+      routingConfidence:     routingConfidence || '',
+      routingReason:         routingReason || '',
       category:         category || 'General IT Support',
       assignedTeam:     assignedTeamId || null,
       assignedTo:       null,
@@ -368,9 +455,86 @@ router.post('/create-ticket', async (req, res) => {
       status:           'Open',
     });
 
+    const User = require('../models/User');
+    const corporateUser = await User.findById(userId);
+    const corpName = corporateUser ? (corporateUser.name || corporateUser.username) : 'Corporate User';
+    await notifyAdmins(`New ticket created by ${corpName} - Ticket #${ticket.ticketNumber}`, ticket._id);
+
     return res.status(201).json({ success: true, ticket });
   } catch (err) {
     console.error('create-ticket error:', err);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/corporate/reanalyze-ticket-preview
+// Re-analyze an edited ticket preview using AI before creation
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/reanalyze-ticket-preview', async (req, res) => {
+  try {
+    const { userId, originalUserInput, ticketTitle, ticketDescription, category, assignedTeam, priority, additionalComments } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId is required.' });
+
+    // Combine context for re-analysis
+    const combinedText = [
+      ticketTitle || '',
+      ticketDescription || '',
+      additionalComments || '',
+      originalUserInput || ''
+    ].filter(Boolean).join('. ');
+
+    const allTeams = await Team.find({ status: 'Active' }, 'name _id');
+    const availableTeamNames = allTeams.map(t => t.name);
+
+    // Call Gemini for re-analysis
+    let geminiAnalysis = null;
+    try {
+      geminiAnalysis = await analyzeTicketIssue(combinedText, availableTeamNames);
+    } catch (err) {
+      console.error('[reanalyze] Gemini re-analysis failed:', err.message);
+    }
+
+    if (!geminiAnalysis) {
+      // If AI fails, return user's edited values as-is
+      return res.json({
+        ticketTitle: ticketTitle || 'IT Support Request',
+        ticketDescription: ticketDescription || originalUserInput || '',
+        category: category || 'Service Desk',
+        assignedTeam: assignedTeam || 'Service Desk',
+        assignedTeamId: null,
+        priority: priority || 'Medium',
+        confidenceScore: 0,
+        routingReason: 'AI re-analysis was unavailable. User-edited values preserved.',
+        aiFailed: true
+      });
+    }
+
+    // Map suggested team to real Team ID
+    let matchedTeamId = null;
+    let matchedTeamName = geminiAnalysis.assignedTeamSuggestion || assignedTeam || 'Service Desk';
+    const matchedTeam = allTeams.find(t => t.name.toLowerCase() === matchedTeamName.toLowerCase());
+    if (matchedTeam) {
+      matchedTeamId = matchedTeam._id;
+      matchedTeamName = matchedTeam.name;
+    } else {
+      const fb = allTeams.find(t => t.name === 'Desktop Support Team') || allTeams[0];
+      if (fb) { matchedTeamId = fb._id; matchedTeamName = fb.name; }
+    }
+
+    return res.json({
+      ticketTitle: geminiAnalysis.ticketTitle || ticketTitle,
+      ticketDescription: geminiAnalysis.ticketDescription || ticketDescription,
+      category: geminiAnalysis.category || category || 'Service Desk',
+      assignedTeam: matchedTeamName,
+      assignedTeamId: matchedTeamId,
+      priority: geminiAnalysis.priority || priority || 'Medium',
+      confidenceScore: geminiAnalysis.confidence || 'Medium',
+      routingReason: geminiAnalysis.reason || 'Re-analyzed by AI based on updated issue details.',
+      aiFailed: false
+    });
+  } catch (err) {
+    console.error('reanalyze-ticket-preview error:', err);
     return res.status(500).json({ error: 'Internal server error.' });
   }
 });
@@ -419,6 +583,11 @@ router.post('/create-ticket-after-kb-failed', async (req, res) => {
         await kb.save();
       }
     }
+
+    const User = require('../models/User');
+    const corporateUser = await User.findById(userId);
+    const corpName = corporateUser ? (corporateUser.name || corporateUser.username) : 'Corporate User';
+    await notifyAdmins(`New ticket created by ${corpName} - Ticket #${ticket.ticketNumber}`, ticket._id);
 
     return res.status(201).json({ success: true, ticket });
   } catch (err) {
@@ -511,6 +680,20 @@ router.patch('/tickets/:ticketId/confirm-resolution', async (req, res) => {
         ticket._id
       );
     }
+
+    // Notify corporate user
+    await notify(
+      ticket.raisedBy,
+      `Your ticket #${ticket.ticketNumber} has been closed successfully.`,
+      ticket._id
+    );
+
+    // Notify admins
+    const User = require('../models/User');
+    const assignedUserObj = ticket.assignedTo ? await User.findById(ticket.assignedTo) : null;
+    const supportName = assignedUserObj ? (assignedUserObj.name || assignedUserObj.username) : 'Unassigned';
+    await notifyAdmins(`Ticket #${ticket.ticketNumber} has been closed by ${supportName}`, ticket._id);
+
 
     const populated = await Ticket.findById(ticket._id)
       .populate('raisedBy',     'username name')
@@ -642,6 +825,95 @@ router.get('/notifications/:userId', async (req, res) => {
     return res.json({ notifications });
   } catch (err) {
     console.error('notifications error:', err);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/corporate/rag-success
+// Called when corporate user says RAG steps worked
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/rag-success', async (req, res) => {
+  try {
+    const { userId, issueText, ragContextIds, recommendedSteps } = req.body;
+    
+    // Log success
+    await ActivityLog.create({
+      userId,
+      action: 'RAG Success',
+      issueText: issueText || '',
+      ragUsed: true,
+      ragResult: 'success',
+    });
+
+    if (ragContextIds && ragContextIds.length > 0) {
+      await updateRagSuccess(ragContextIds);
+    }
+
+    return res.json({ success: true, message: 'RAG success recorded.' });
+  } catch (err) {
+    console.error('rag-success error:', err);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/corporate/create-ticket-after-rag-failed
+// Called when corporate user says RAG steps did not work
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/create-ticket-after-rag-failed', async (req, res) => {
+  try {
+    const {
+      userId, issueText, ticketTitle, ticketDescription, category,
+      ragContextIds, attemptedRagSteps, recommendedTeamId
+    } = req.body;
+
+    if (!userId || !issueText) {
+      return res.status(400).json({ error: 'userId and issueText are required.' });
+    }
+
+    const ticket = await Ticket.create({
+      ticketNumber:             'TICK-' + Date.now(),
+      ticketTitle:              ticketTitle || 'Issue reported via RAG',
+      raisedBy:                 userId,
+      issueDescription:         ticketDescription || issueText,
+      originalUserInput:        issueText,
+      category:                 category || 'General IT Support',
+      assignedTeam:             recommendedTeamId || null,
+      priority:                 'Medium',
+      status:                   'Open',
+      
+      // RAG Tracking Fields
+      attemptedRag:             true,
+      attemptedRagKbIds:        ragContextIds || [],
+      attemptedRagSteps:        attemptedRagSteps || [],
+      ragFinalScore:            req.body.ragFinalScore || null,
+      extractedMetadata:        req.body.extractedMetadata || {},
+      userSaidRagFailed:        true
+    });
+
+    // Update KB failure stats
+    if (ragContextIds && ragContextIds.length > 0) {
+      await updateRagFailure(ragContextIds);
+    }
+    
+    // Log Activity
+    await ActivityLog.create({
+      userId,
+      action: 'RAG Failed, Ticket Created',
+      issueText: issueText || '',
+      ragUsed: true,
+      ragResult: 'failed',
+    });
+
+    const User = require('../models/User');
+    const corporateUser = await User.findById(userId);
+    const corpName = corporateUser ? (corporateUser.name || corporateUser.username) : 'Corporate User';
+    await notifyAdmins(`New ticket created by ${corpName} - Ticket #${ticket.ticketNumber}`, ticket._id);
+
+    return res.status(201).json({ success: true, ticket });
+  } catch (err) {
+    console.error('create-ticket-after-rag-failed error:', err);
     return res.status(500).json({ error: 'Internal server error.' });
   }
 });

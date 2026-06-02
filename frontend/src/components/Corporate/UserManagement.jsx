@@ -15,7 +15,10 @@ import {
   AlertCircle, 
   CheckCircle2, 
   RefreshCw,
-  Tag
+  Tag,
+  ChevronLeft,
+  ChevronRight,
+  Trash2
 } from 'lucide-react';
 
 const UserManagement = () => {
@@ -35,6 +38,7 @@ const UserManagement = () => {
   const [success, setSuccess] = useState('');
 
   // Modal State
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [editUsername, setEditUsername] = useState('');
   const [editPassword, setEditPassword] = useState('');
@@ -45,9 +49,9 @@ const UserManagement = () => {
   const [editStatus, setEditStatus] = useState('Active');
   const [showEditModal, setShowEditModal] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const usersPerPage = 10;
 
   const fetchData = async () => {
     setLoading(true);
@@ -66,6 +70,10 @@ const UserManagement = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
@@ -91,6 +99,7 @@ const UserManagement = () => {
       setEmail('');
       setRole('Support User');
       setTeam('');
+      setShowCreateModal(false);
       fetchData();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
@@ -149,14 +158,39 @@ const UserManagement = () => {
     }
   };
 
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+      return;
+    }
+    try {
+      const response = await axios.delete(`http://localhost:5000/api/admin/users/${userId}`);
+      if (response.data.message) {
+        setSuccess('User deleted successfully!');
+        fetchData();
+        setTimeout(() => setSuccess(''), 3000);
+      }
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      setError(err.response?.data?.error || 'Failed to delete user.');
+    }
+  };
+
   // Stats
   const totalUsers = users.length;
   const supportUsers = users.filter(u => u.role === 'Support User').length;
   const teamLeads = users.filter(u => u.role === 'Team Lead').length;
   const corporateUsers = users.filter(u => u.role === 'Corporate User').length;
 
+  // Pagination calculations
+  const indexOfLastUser = currentPage * usersPerPage;
+  const indexOfFirstUser = indexOfLastUser - usersPerPage;
+  const currentUsers = users.slice(indexOfFirstUser, indexOfLastUser);
+  const totalPages = Math.ceil(totalUsers / usersPerPage);
+
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
   return (
-    <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 font-sans">
+    <div className="flex flex-col h-screen bg-slate-950 text-slate-100 font-sans">
       <Navbar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
@@ -170,13 +204,20 @@ const UserManagement = () => {
                 Provision new employee logins, assign system roles, and associate agents with technical teams.
               </p>
             </div>
-            <div>
+            <div className="flex items-center gap-3">
               <button
                 onClick={fetchData}
                 className="flex items-center gap-2 p-2.5 bg-slate-900 border border-slate-800 hover:bg-slate-850 text-slate-400 hover:text-slate-200 rounded-xl transition duration-150"
               >
                 <RefreshCw className={`h-4.5 w-4.5 ${loading ? 'animate-spin' : ''}`} />
-                <span className="text-xs font-semibold">Sync Registry</span>
+                <span className="text-xs font-semibold hidden sm:inline">Sync Registry</span>
+              </button>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="flex items-center gap-2 p-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition duration-150 shadow-lg shadow-indigo-500/20 active:scale-95"
+              >
+                <UserPlus className="h-4.5 w-4.5" />
+                <span className="text-xs font-bold">Create User</span>
               </button>
             </div>
           </div>
@@ -235,112 +276,9 @@ const UserManagement = () => {
             </div>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Create User Card */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg space-y-5 h-fit font-sans">
-              <div>
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <UserPlus className="h-4.5 w-4.5 text-indigo-400" />
-                  Provision User Account
-                </h3>
-                <p className="text-xs text-slate-400 mt-1">Spin up a new technical or corporate login credential.</p>
-              </div>
-
-              <form onSubmit={handleCreateUser} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Username</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. jdoe"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="block w-full px-4 py-2.5 mt-1.5 border border-slate-800 rounded-xl bg-slate-950 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Password</label>
-                  <div className="relative">
-                    <input
-                      type="password"
-                      required
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="block w-full px-4 py-2.5 mt-1.5 border border-slate-800 rounded-xl bg-slate-950 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                    <Lock className="h-4 w-4 text-slate-650 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Full Name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. John Doe"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="block w-full px-4 py-2.5 mt-1.5 border border-slate-800 rounded-xl bg-slate-950 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Email Address</label>
-                  <div className="relative">
-                    <input
-                      type="email"
-                      placeholder="e.g. jdoe@company.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="block w-full px-4 py-2.5 mt-1.5 border border-slate-800 rounded-xl bg-slate-950 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                    <Mail className="h-4 w-4 text-slate-650 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">System Role</label>
-                  <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                    className="block w-full px-3 py-2.5 mt-1.5 border border-slate-800 rounded-xl bg-slate-950 text-slate-350 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                  >
-                    <option value="Admin">Admin</option>
-                    <option value="Team Lead">Team Lead</option>
-                    <option value="Support User">Support User</option>
-                    <option value="Corporate User">Corporate User</option>
-                  </select>
-                </div>
-
-                {(role === 'Team Lead' || role === 'Support User') && (
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Assigned Team</label>
-                    <select
-                      value={team}
-                      onChange={(e) => setTeam(e.target.value)}
-                      className="block w-full px-3 py-2.5 mt-1.5 border border-slate-800 rounded-xl bg-slate-950 text-slate-350 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                    >
-                      <option value="">-- No Assigned Team --</option>
-                      {teams.map(t => (
-                        <option key={t._id} value={t._id}>{t.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  className="w-full flex justify-center py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-xl shadow-lg active:scale-98 transition-all duration-150"
-                >
-                  Create User Login
-                </button>
-              </form>
-            </div>
-
-            {/* Users List Roster */}
-            <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg space-y-4">
-              <div>
+          {/* Users List Roster */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg space-y-4">
+            <div>
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
                   <Users className="h-4.5 w-4.5 text-indigo-400" />
                   Credentials Registry ({totalUsers})
@@ -371,7 +309,7 @@ const UserManagement = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-850 text-slate-350">
-                      {users.map((u) => (
+                      {currentUsers.map((u) => (
                         <tr key={u._id} className="hover:bg-slate-850/30 transition-colors">
                           <td className="py-3.5 max-w-[150px]">
                             <div className="min-w-0">
@@ -424,6 +362,15 @@ const UserManagement = () => {
                               >
                                 {u.status === 'Active' ? <ToggleRight className="h-4.5 w-4.5" /> : <ToggleLeft className="h-4.5 w-4.5" />}
                               </button>
+                              {u.role !== 'Admin' && (
+                                <button
+                                  onClick={() => handleDeleteUser(u._id)}
+                                  className="p-1.5 bg-red-950/20 border border-red-900 rounded-lg text-red-400 hover:bg-red-950/40 hover:text-red-300 transition duration-150"
+                                  title="Delete User"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -432,10 +379,162 @@ const UserManagement = () => {
                   </table>
                 </div>
               )}
-            </div>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-800 pt-4 px-2">
+                  <p className="text-xs text-slate-400">
+                    Showing <span className="font-semibold text-slate-200">{indexOfFirstUser + 1}</span> to <span className="font-semibold text-slate-200">{Math.min(indexOfLastUser, totalUsers)}</span> of <span className="font-semibold text-slate-200">{totalUsers}</span> entries
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="p-1.5 rounded-lg border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <div className="flex items-center gap-1 overflow-x-auto max-w-[200px] sm:max-w-none scrollbar-hide">
+                      {[...Array(totalPages)].map((_, i) => (
+                        <button
+                          key={i}
+                          onClick={() => paginate(i + 1)}
+                          className={`w-7 h-7 shrink-0 rounded-lg text-xs font-semibold flex items-center justify-center transition-all ${
+                            currentPage === i + 1 
+                              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20' 
+                              : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                          }`}
+                        >
+                          {i + 1}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      className="p-1.5 rounded-lg border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
           </div>
         </main>
       </div>
+
+      {/* Create Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl p-6 relative overflow-hidden animate-scale-up">
+            <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-indigo-400" />
+              Provision User Account
+            </h3>
+            <p className="text-xs text-slate-400 mt-1">Spin up a new technical or corporate login credential.</p>
+
+            <form onSubmit={handleCreateUser} className="mt-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Username</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. jdoe"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="block w-full px-3.5 py-2.5 mt-1 border border-slate-800 rounded-xl bg-slate-950 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Password</label>
+                <div className="relative">
+                  <input
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="block w-full px-3.5 py-2.5 mt-1 border border-slate-800 rounded-xl bg-slate-950 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <Lock className="h-4 w-4 text-slate-650 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Full Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. John Doe"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="block w-full px-3.5 py-2.5 mt-1 border border-slate-800 rounded-xl bg-slate-950 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Email Address</label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    placeholder="e.g. jdoe@company.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="block w-full px-3.5 py-2.5 mt-1 border border-slate-800 rounded-xl bg-slate-950 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <Mail className="h-4 w-4 text-slate-650 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">System Role</label>
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  className="block w-full px-3 py-2.5 mt-1 border border-slate-800 rounded-xl bg-slate-950 text-slate-350 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                >
+                  <option value="Admin">Admin</option>
+                  <option value="Team Lead">Team Lead</option>
+                  <option value="Support User">Support User</option>
+                  <option value="Corporate User">Corporate User</option>
+                </select>
+              </div>
+
+              {(role === 'Team Lead' || role === 'Support User') && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Assigned Team</label>
+                  <select
+                    value={team}
+                    onChange={(e) => setTeam(e.target.value)}
+                    className="block w-full px-3 py-2.5 mt-1 border border-slate-800 rounded-xl bg-slate-950 text-slate-350 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                  >
+                    <option value="">-- No Assigned Team --</option>
+                    {teams.filter(t => t.status === 'Active' || t.status === undefined).map(t => (
+                      <option key={t._id} value={t._id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-850">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-350 text-sm font-semibold rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl shadow-lg active:scale-95 transition-all duration-150"
+                >
+                  Create User Login
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {showEditModal && (
@@ -510,7 +609,7 @@ const UserManagement = () => {
                     className="block w-full px-3 py-2.5 mt-1 border border-slate-800 rounded-xl bg-slate-950 text-slate-350 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                   >
                     <option value="">-- No Assigned Team --</option>
-                    {teams.map(t => (
+                    {teams.filter(t => t.status === 'Active' || t.status === undefined).map(t => (
                       <option key={t._id} value={t._id}>{t.name}</option>
                     ))}
                   </select>

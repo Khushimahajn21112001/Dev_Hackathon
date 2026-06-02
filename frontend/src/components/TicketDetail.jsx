@@ -261,7 +261,9 @@ const TicketDetail = ({ ticket, onBack, onUpdate, userRole }) => {
                   <div>
                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Resolution Steps</p>
                     <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 text-sm text-slate-300 whitespace-pre-line">
-                      {ticket.resolutionSteps ? ticket.resolutionSteps.join('\\n') : 'Not specified'}
+                      {ticket.resolutionSteps 
+                        ? (Array.isArray(ticket.resolutionSteps) ? ticket.resolutionSteps.join('\n') : ticket.resolutionSteps)
+                        : 'Not specified'}
                     </div>
                   </div>
                 </div>
@@ -322,7 +324,7 @@ const TicketDetail = ({ ticket, onBack, onUpdate, userRole }) => {
           )}
 
           {/* Chat Panel */}
-          {(ticket.status === 'Assigned' || ticket.status === 'In Progress' || ticket.status === 'Closed') && (
+          {userRole !== 'Admin' && (ticket.status === 'Assigned' || ticket.status === 'In Progress' || ticket.status === 'Closed') && (
             <ChatBox ticketId={ticket._id} recipientId={recipientId} />
           )}
         </div>
@@ -330,25 +332,30 @@ const TicketDetail = ({ ticket, onBack, onUpdate, userRole }) => {
         {/* Sidebar Info Card */}
         <div className="space-y-6">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-            <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider">System Metadata</h3>
+            
+            {userRole !== 'Admin' && (
+              <>
+                <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider">System Metadata</h3>
 
-            <div className="space-y-3 text-xs text-slate-400">
-              <div className="flex justify-between py-2 border-b border-slate-800/80">
-                <span className="font-medium text-slate-500">Route Category</span>
-                <span className="font-semibold text-slate-300">{ticket.category || 'N/A'}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-slate-800/80">
-                <span className="font-medium text-slate-500">Assigned Team</span>
-                <span className="font-semibold text-slate-300">{ticket.assignedTeam?.name || 'N/A'}</span>
-              </div>
-              <div className="flex justify-between py-2">
-                <span className="font-medium text-slate-500">Priority Tier</span>
-                <span className="font-semibold text-yellow-400">{ticket.priority || 'Medium'}</span>
-              </div>
-            </div>
+                <div className="space-y-3 text-xs text-slate-400">
+                  <div className="flex justify-between py-2 border-b border-slate-800/80">
+                    <span className="font-medium text-slate-500">Route Category</span>
+                    <span className="font-semibold text-slate-300">{ticket.category || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-slate-800/80">
+                    <span className="font-medium text-slate-500">Assigned Team</span>
+                    <span className="font-semibold text-slate-300">{ticket.assignedTeam?.name || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="font-medium text-slate-500">Priority Tier</span>
+                    <span className="font-semibold text-yellow-400">{ticket.priority || 'Medium'}</span>
+                  </div>
+                </div>
+              </>
+            )}
 
             {userRole === 'Admin' ? (
-              <div className="space-y-4 pt-3 border-t border-slate-850">
+              <div className={`space-y-4 ${userRole !== 'Admin' ? 'pt-3 border-t border-slate-850' : ''}`}>
                 <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Assign Operations</h4>
                 
                 <div>

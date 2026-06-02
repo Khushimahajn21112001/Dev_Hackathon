@@ -19,6 +19,40 @@ app.use('/api/corporate', require('./routes/corporateRoutes'));
 app.use('/api/team-lead', require('./routes/teamLeadRoutes'));
 app.use('/api/support', require('./routes/supportRoutes'));
 
+// Debug endpoints
+app.get('/api/debug/test-gemini', async (req, res) => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({
+      success: false,
+      error: 'GEMINI_API_KEY is not defined in the backend environment (.env file)'
+    });
+  }
+
+  try {
+    const { GoogleGenerativeAI } = require('@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(apiKey);
+    // Use the model configured in our codebase
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+    const result = await model.generateContent('Say "Gemini connection is working!" in one short sentence.');
+    const text = result.response.text();
+    return res.json({
+      success: true,
+      message: 'Gemini API is working successfully!',
+      geminiResponse: text.trim()
+    });
+  } catch (error) {
+    console.error('Debug Gemini test failed:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+      status: error.status,
+      statusText: error.statusText,
+      errorDetails: error.errorDetails || error.details
+    });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 
 connectDB().then(() => {

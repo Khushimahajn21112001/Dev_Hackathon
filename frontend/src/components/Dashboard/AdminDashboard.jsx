@@ -53,10 +53,6 @@ const AdminDashboard = () => {
   const [priorityFilter, setPriorityFilter] = useState('');
   const [teamFilter, setTeamFilter] = useState('');
 
-  // Team Modal State
-  const [showTeamModal, setShowTeamModal] = useState(false);
-  const [newTeamName, setNewTeamName] = useState('');
-  const [msg, setMsg] = useState('');
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -137,46 +133,6 @@ const AdminDashboard = () => {
     }
   }, [window.location.pathname]);
 
-  const [teamLeads, setTeamLeads] = useState([]);
-  const [selectedTeamLead, setSelectedTeamLead] = useState('');
-
-  // Fetch team leads when modal opens
-  useEffect(() => {
-    if (showTeamModal) {
-      (async () => {
-        try {
-          const res = await axios.get('http://localhost:5000/api/team-leads');
-          setTeamLeads(res.data.leads || []);
-        } catch (e) {
-          console.error('Failed to fetch team leads', e);
-        }
-      })();
-    }
-  }, [showTeamModal]);
-
-  const handleCreateTeam = async (e) => {
-    e.preventDefault();
-    if (!newTeamName.trim()) return;
-
-    try {
-      // Create team via admin endpoint, include optional teamLead
-      await axios.post('http://localhost:5000/api/admin/teams', {
-        name: newTeamName,
-        teamLead: selectedTeamLead || undefined,
-      });
-
-      setMsg('Support Team Division provisioned successfully!');
-      setNewTeamName('');
-      setSelectedTeamLead('');
-      fetchDashboardData();
-      setTimeout(() => {
-        setMsg('');
-        setShowTeamModal(false);
-      }, 2000);
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
   // --------------------------------------------------------------------------
   // Navigation & Filtering via Graph Clicks
@@ -251,7 +207,7 @@ const AdminDashboard = () => {
   }, [tickets, searchQuery, statusFilter, priorityFilter, teamFilter]);
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 font-sans">
+    <div className="flex flex-col h-screen bg-slate-950 text-slate-100 font-sans">
       <Navbar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
@@ -285,13 +241,6 @@ const AdminDashboard = () => {
                     title="Reload Dashboard"
                   >
                     <RefreshCw className={`h-4.5 w-4.5 ${loading ? 'animate-spin' : ''}`} />
-                  </button>
-                  <button
-                    onClick={() => setShowTeamModal(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-indigo-500/20 active:scale-95 transition-all duration-150"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Provision Division
                   </button>
                 </div>
               </div>
@@ -566,65 +515,6 @@ const AdminDashboard = () => {
         </main>
       </div>
 
-      {/* Provision Team Modal */}
-      {showTeamModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl p-6 relative overflow-hidden animate-scale-up">
-            <h3 className="text-lg font-bold text-slate-100">Provision Support Division</h3>
-            <p className="text-xs text-slate-400 mt-1">Spin up a new technical resolution division across the enterprise</p>
-
-            {msg && (
-              <div className="mt-4 p-3 bg-emerald-950/40 border border-emerald-900 text-emerald-200 text-xs rounded-xl flex items-center justify-center">
-                {msg}
-              </div>
-            )}
-
-            <form onSubmit={handleCreateTeam} className="mt-5 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Division Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Cloud Operations Team"
-                  value={newTeamName}
-                  onChange={(e) => setNewTeamName(e.target.value)}
-                  className="block w-full px-3.5 py-2.5 mt-1 border border-slate-800 rounded-xl bg-slate-950 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Assign Team Lead (Optional)</label>
-                <select
-                  value={selectedTeamLead}
-                  onChange={(e) => setSelectedTeamLead(e.target.value)}
-                  className="block w-full px-3.5 py-2.5 mt-1 border border-slate-800 rounded-xl bg-slate-950 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">Select a Lead...</option>
-                  {teamLeads.map(lead => (
-                    <option key={lead._id} value={lead._id}>{lead.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-slate-850">
-                <button
-                  type="button"
-                  onClick={() => setShowTeamModal(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-350 text-sm font-semibold rounded-xl"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl shadow-lg active:scale-95 transition-all duration-150"
-                >
-                  Provision Division
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

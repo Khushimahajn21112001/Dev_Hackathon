@@ -28,17 +28,12 @@ const Login = () => {
         password,
       });
 
-      const { token, role, username: returnedUser } = response.data;
+      const { token, role, username: returnedUser, userId, team } = response.data;
       localStorage.setItem('token', token);
       localStorage.setItem('role', role);
       localStorage.setItem('username', returnedUser);
-      // Let's also store the raw user ID by decoding the token (which is base64 of user ID)
-      try {
-        const userId = atob(token);
-        localStorage.setItem('userId', userId);
-      } catch (e) {
-        console.error('Error decoding token for userId', e);
-      }
+      if (userId) localStorage.setItem('userId', userId);
+      if (team) localStorage.setItem('teamId', team.toString());
 
       // Redirect based on role
       if (role === 'Admin') {

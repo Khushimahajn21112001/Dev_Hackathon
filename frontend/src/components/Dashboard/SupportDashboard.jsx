@@ -74,7 +74,7 @@ const SupportDashboard = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 font-sans">
+    <div className="flex flex-col h-screen bg-slate-950 text-slate-100 font-sans">
       <Navbar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />

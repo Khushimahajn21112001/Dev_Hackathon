@@ -2,6 +2,7 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { getTicketAnalysisPrompt } = require('../prompts/ticketAnalysisPrompt');
 const { getResolutionSummaryPrompt } = require('../prompts/resolutionSummaryPrompt');
+const { getMetadataExtractionPrompt } = require('../prompts/metadataExtractionPrompt');
 
 // Initialize Gemini API
 // It will gracefully fail if the key is not present (fallback mechanisms should be in place in the routes)
@@ -39,7 +40,7 @@ async function analyzeTicketIssue(issueText, availableTeams) {
     throw new Error('GEMINI_API_KEY is not configured in .env');
   }
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
   const systemPrompt = getTicketAnalysisPrompt(availableTeams);
 
   const prompt = `${systemPrompt}\n\nUSER ISSUE: "${issueText}"\n\nGenerate the JSON output:`;
@@ -78,7 +79,7 @@ async function summarizeResolutionForKB(data) {
     throw new Error('GEMINI_API_KEY is not configured in .env');
   }
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
   const systemPrompt = getResolutionSummaryPrompt();
 
   const prompt = `${systemPrompt}
@@ -106,7 +107,32 @@ Generate the clean JSON output for the Knowledge Base:`;
   }
 }
 
+/**
+ * Extracts structured metadata from a user issue for hybrid RAG matching.
+ * @param {string} issueText - The raw issue entered by the user
+ * @returns {Promise<Object>} The parsed structured JSON object
+ */
+async function extractIssueMetadata(issueText) {
+  if (!genAI) {
+    throw new Error('GEMINI_API_KEY is not configured in .env');
+  }
+
+  const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+  const systemPrompt = getMetadataExtractionPrompt();
+  const prompt = `${systemPrompt}\n\nUSER ISSUE: "${issueText}"\n\nGenerate the JSON output:`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const responseText = result.response.text();
+    return JSON.parse(cleanJsonString(responseText));
+  } catch (error) {
+    console.error('Failed to extract Gemini issue metadata:', error.message);
+    return null;
+  }
+}
+
 module.exports = {
   analyzeTicketIssue,
+  extractIssueMetadata,
   summarizeResolutionForKB
 };

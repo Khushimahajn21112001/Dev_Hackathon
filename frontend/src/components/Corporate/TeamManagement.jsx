@@ -12,7 +12,8 @@ import {
   AlertCircle, 
   CheckCircle2, 
   ToggleLeft, 
-  ToggleRight 
+  ToggleRight,
+  Trash2
 } from 'lucide-react';
 
 const TeamManagement = () => {
@@ -28,6 +29,7 @@ const TeamManagement = () => {
   const [success, setSuccess] = useState('');
 
   // Modal State
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingTeam, setEditingTeam] = useState(null);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -75,6 +77,7 @@ const TeamManagement = () => {
         setName('');
         setDescription('');
         setTeamLead('');
+        setShowCreateModal(false);
         fetchData();
         setTimeout(() => setSuccess(''), 3000);
       }
@@ -135,13 +138,30 @@ const TeamManagement = () => {
     }
   };
 
+  const handleDeleteTeam = async (teamId) => {
+    if (!window.confirm('Are you sure you want to delete this division? This action cannot be undone.')) {
+      return;
+    }
+    try {
+      const response = await axios.delete(`http://localhost:5000/api/tickets/teams/${teamId}`);
+      if (response.data.success) {
+        setSuccess('Division deleted successfully!');
+        fetchData();
+        setTimeout(() => setSuccess(''), 3000);
+      }
+    } catch (err) {
+      console.error('Error deleting team:', err);
+      setError('Failed to delete division.');
+    }
+  };
+
   // Stats
   const totalTeams = teams.length;
   const activeTeams = teams.filter(t => t.status === 'Active').length;
   const inactiveTeams = teams.filter(t => t.status === 'Inactive').length;
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 font-sans">
+    <div className="flex flex-col h-screen bg-slate-950 text-slate-100 font-sans">
       <Navbar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
@@ -155,13 +175,20 @@ const TeamManagement = () => {
                 Create new tactical response groups, designate leaders, and monitor division rosters.
               </p>
             </div>
-            <div>
+            <div className="flex items-center gap-3">
               <button
                 onClick={fetchData}
                 className="flex items-center gap-2 p-2.5 bg-slate-900 border border-slate-800 hover:bg-slate-850 text-slate-400 hover:text-slate-200 rounded-xl transition duration-150"
               >
                 <RefreshCw className={`h-4.5 w-4.5 ${loading ? 'animate-spin' : ''}`} />
-                <span className="text-xs font-semibold">Sync Registry</span>
+                <span className="text-xs font-semibold hidden sm:inline">Sync Registry</span>
+              </button>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="flex items-center gap-2 p-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition duration-150 shadow-lg shadow-indigo-500/20 active:scale-95"
+              >
+                <Plus className="h-4.5 w-4.5" />
+                <span className="text-xs font-bold">Create Team</span>
               </button>
             </div>
           </div>
@@ -211,67 +238,9 @@ const TeamManagement = () => {
             </div>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Create Team Form Card */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg space-y-5 h-fit">
-              <div>
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Plus className="h-4.5 w-4.5 text-indigo-400" />
-                  Create Support Team
-                </h3>
-                <p className="text-xs text-slate-400 mt-1">Spin up a new technical resolution division.</p>
-              </div>
-
-              <form onSubmit={handleCreateTeam} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Team Name</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Cloud Operations Team"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="block w-full px-4 py-2.5 mt-1.5 border border-slate-800 rounded-xl bg-slate-950 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Description</label>
-                  <textarea
-                    placeholder="Briefly describe this team's scope of service..."
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows="3"
-                    className="block w-full px-4 py-2.5 mt-1.5 border border-slate-800 rounded-xl bg-slate-950 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Team Lead</label>
-                  <select
-                    value={teamLead}
-                    onChange={(e) => setTeamLead(e.target.value)}
-                    className="block w-full px-3 py-2.5 mt-1.5 border border-slate-800 rounded-xl bg-slate-950 text-slate-350 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                  >
-                    <option value="">-- Assign Team Lead (Optional) --</option>
-                    {teamLeads.map(lead => (
-                      <option key={lead._id} value={lead._id}>{lead.username} ({lead.name || 'No Name'})</option>
-                    ))}
-                  </select>
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full flex justify-center py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-xl shadow-lg active:scale-98 transition-all duration-150"
-                >
-                  Provision Team
-                </button>
-              </form>
-            </div>
-
-            {/* Teams Registry List Card */}
-            <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg space-y-4">
-              <div>
+          {/* Teams Registry List Card */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg space-y-4">
+            <div>
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
                   <Users className="h-4.5 w-4.5 text-indigo-400" />
                   Active Registry ({totalTeams})
@@ -342,6 +311,13 @@ const TeamManagement = () => {
                               >
                                 {team.status === 'Active' ? <ToggleRight className="h-4.5 w-4.5" /> : <ToggleLeft className="h-4.5 w-4.5" />}
                               </button>
+                              <button
+                                onClick={() => handleDeleteTeam(team._id)}
+                                className="p-1.5 bg-red-950/20 border border-red-900 rounded-lg text-red-400 hover:bg-red-950/40 hover:text-red-300 transition duration-150"
+                                title="Delete Division"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -350,10 +326,77 @@ const TeamManagement = () => {
                   </table>
                 </div>
               )}
-            </div>
           </div>
         </main>
       </div>
+
+      {/* Create Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl p-6 relative overflow-hidden animate-scale-up">
+            <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+              <Plus className="h-5 w-5 text-indigo-400" />
+              Create Support Team
+            </h3>
+            <p className="text-xs text-slate-400 mt-1">Spin up a new technical resolution division.</p>
+
+            <form onSubmit={handleCreateTeam} className="mt-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Team Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Cloud Operations Team"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="block w-full px-3.5 py-2.5 mt-1 border border-slate-800 rounded-xl bg-slate-950 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Description</label>
+                <textarea
+                  placeholder="Briefly describe this team's scope of service..."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows="3"
+                  className="block w-full px-3.5 py-2.5 mt-1 border border-slate-800 rounded-xl bg-slate-950 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Team Lead</label>
+                <select
+                  value={teamLead}
+                  onChange={(e) => setTeamLead(e.target.value)}
+                  className="block w-full px-3 py-2.5 mt-1 border border-slate-800 rounded-xl bg-slate-950 text-slate-350 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                >
+                  <option value="">-- Assign Team Lead (Optional) --</option>
+                  {teamLeads.filter(lead => lead.status === 'Active' || lead.status === undefined).map(lead => (
+                    <option key={lead._id} value={lead._id}>{lead.username} ({lead.name || 'No Name'})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-850">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-350 text-sm font-semibold rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl shadow-lg active:scale-95 transition-all duration-150"
+                >
+                  Provision Team
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {showEditModal && (
@@ -392,7 +435,7 @@ const TeamManagement = () => {
                   className="block w-full px-3 py-2.5 mt-1 border border-slate-800 rounded-xl bg-slate-950 text-slate-350 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                 >
                   <option value="">-- Assign Team Lead (Optional) --</option>
-                  {teamLeads.map(lead => (
+                  {teamLeads.filter(lead => lead.status === 'Active' || lead.status === undefined).map(lead => (
                     <option key={lead._id} value={lead._id}>{lead.username} ({lead.name || 'No Name'})</option>
                   ))}
                 </select>

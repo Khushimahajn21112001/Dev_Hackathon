@@ -106,9 +106,9 @@ router.patch('/tickets/:ticketId/assign', async (req, res) => {
 
     // Create notifications
     if (populatedTicket.raisedBy) {
-      let msg = `Your ticket ${populatedTicket.ticketNumber} has been updated.`;
+      let msg = `Your ticket #${populatedTicket.ticketNumber} has been updated.`;
       if (assignedUser) {
-        msg = `Your ticket ${populatedTicket.ticketNumber} has been assigned to support agent ${assignedUser.username}.`;
+        msg = `Your ticket #${populatedTicket.ticketNumber} has been assigned to ${assignedUser.name || assignedUser.username}.`;
       }
       await Notification.create({
         userId: populatedTicket.raisedBy._id,
@@ -120,7 +120,7 @@ router.patch('/tickets/:ticketId/assign', async (req, res) => {
     if (assignedUser) {
       await Notification.create({
         userId: assignedUser._id,
-        message: `Ticket ${populatedTicket.ticketNumber} has been assigned to you.`,
+        message: `Ticket #${populatedTicket.ticketNumber} has been assigned to you.`,
         ticketId: populatedTicket._id,
       });
     }

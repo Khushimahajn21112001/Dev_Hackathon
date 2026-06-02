@@ -18,7 +18,7 @@ router.post('/login', async (req, res) => {
     }
     // Simple token (could be JWT later). Here we just return username as token.
     const token = Buffer.from(`${user._id}`).toString('base64');
-    res.json({ token, role: user.role, username: user.username });
+    res.json({ token, role: user.role, username: user.username, userId: user._id.toString(), team: user.team });
   } catch (err) {
     console.error('Login error', err);
     res.status(500).json({ message: 'Server error' });

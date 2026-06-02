@@ -134,6 +134,23 @@ router.patch('/teams/:id/status', async (req, res) => {
   }
 });
 
+// Delete team
+router.delete('/teams/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const team = await Team.findByIdAndDelete(id);
+    if (!team) {
+      return res.status(404).json({ message: 'Team not found' });
+    }
+    // Set users belonging to this team to have no team
+    await User.updateMany({ team: id }, { team: null });
+    res.json({ success: true, message: 'Team deleted successfully' });
+  } catch (err) {
+    console.error('Delete team error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Create ticket (used by issue analysis when no match)
 router.post('/create', async (req, res) => {
   const { raisedBy, issueDescription, category, priority, assignedTeam } = req.body;
@@ -153,6 +170,21 @@ router.post('/create', async (req, res) => {
       assignedTeam,
       status: 'Open',
     });
+
+    const User = require('../models/User');
+    const Notification = require('../models/Notification');
+    const corporateUser = await User.findById(raisedBy);
+    const corpName = corporateUser ? (corporateUser.name || corporateUser.username) : 'Corporate User';
+    
+    const admins = await User.find({ role: 'Admin' });
+    for (const admin of admins) {
+      await Notification.create({
+        userId: admin._id,
+        message: `New ticket created by ${corpName} - Ticket #${ticket.ticketNumber}`,
+        ticketId: ticket._id
+      });
+    }
+
     res.json({ ticket });
   } catch (err) {
     console.error('Create ticket error:', err);
@@ -244,15 +276,23 @@ router.patch('/assign/:id', async (req, res) => {
     // Create a notification for the user who raised it
     if (ticket) {
       const Notification = require('../models/Notification');
-      let msg = `Your ticket ${ticket.ticketNumber} has been updated.`;
+      let msg = `Your ticket #${ticket.ticketNumber} has been updated.`;
       if (assignedToId) {
-        msg = `Your ticket ${ticket.ticketNumber} has been assigned to a support agent.`;
+        msg = `Your ticket #${ticket.ticketNumber} has been assigned to ${ticket.assignedTo.name || ticket.assignedTo.username}.`;
       }
       await Notification.create({
         userId: ticket.raisedBy._id,
         message: msg,
         ticketId: ticket._id,
       });
+
+      if (assignedToId) {
+        await Notification.create({
+          userId: assignedToId,
+          message: `Ticket #${ticket.ticketNumber} has been assigned to you.`,
+          ticketId: ticket._id,
+        });
+      }
     }
 
     res.json({ ticket });
@@ -267,14 +307,53 @@ router.patch('/close/:id', async (req, res) => {
   const ticketId = req.params.id;
   const { rootCause, steps, reusable } = req.body;
   try {
-    const ticket = await Ticket.findByIdAndUpdate(ticketId, { status: 'Closed' }, { new: true });
+    const ticket = await Ticket.findByIdAndUpdate(
+      ticketId, 
+      { status: 'Closed', rootCause, resolutionSteps: steps, reusableFix: reusable }, 
+      { new: true }
+    ).populate('assignedTeam', 'name');
+
     // If reusable, add to ResolutionKB
     if (reusable) {
       const ResolutionKB = require('../models/ResolutionKB');
-      await ResolutionKB.create({
-        issueTitle: rootCause || ticket.issueDescription,
+      const { extractKbMetadata } = require('../services/ragService');
+      const { generateEmbedding } = require('../utils/aiMatching');
+
+      const issueTitle = rootCause || ticket.issueDescription;
+      
+      // 1. Extract metadata
+      const metadata = await extractKbMetadata(
+        issueTitle,
+        rootCause,
         steps,
+        ticket.category,
+        ticket.assignedTeam?.name
+      );
+
+      // 2. Generate embedding (combining title, cause, and problem family)
+      const textToEmbed = `${issueTitle} ${rootCause} ${metadata?.problemFamily || ''}`;
+      const embedding = await generateEmbedding(textToEmbed);
+
+      // 3. Create KB record
+      await ResolutionKB.create({
+        issueTitle: issueTitle,
+        knownFixSteps: steps, // ensure we save into knownFixSteps, not steps
+        rootCause,
+        category: ticket.category,
+        assignedTeam: ticket.assignedTeam?._id,
         solvedCount: 1,
+        embedding: embedding || [],
+        
+        // AI Extracted fields
+        applicationNames: metadata?.applicationNames || [],
+        errorMessages: metadata?.errorMessages || [],
+        rootCauseCategory: metadata?.rootCauseCategory || '',
+        problemFamily: metadata?.problemFamily || '',
+        policyTool: metadata?.policyTool || '',
+        affectedLayer: metadata?.affectedLayer || '',
+        symptoms: metadata?.symptoms || [],
+        resolutionType: metadata?.resolutionType || '',
+        tags: metadata?.tags || []
       });
     }
     res.json({ ticket });
