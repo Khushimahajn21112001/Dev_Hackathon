@@ -92,19 +92,21 @@ const TeamLeadDashboard = () => {
   return (
     <div className="p-6 md:p-8 space-y-8 font-sans animate-fade-in text-slate-100 bg-slate-950 min-h-full">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/60 pb-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl flex items-center gap-2">
-            <LayoutDashboard className="h-7 w-7 text-indigo-400" />
+          <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl flex items-center gap-3">
+            <div className="p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/20">
+              <LayoutDashboard className="h-6 w-6 text-indigo-400" />
+            </div>
             <span>Lead Telemetry Desk</span>
           </h1>
-          <p className="text-sm text-slate-400 mt-1.5">
+          <p className="text-sm text-slate-400 mt-2 ml-[52px]">
             Overviewing division <span className="text-indigo-400 font-bold">{team ? team.name : 'Tactical Division'}</span>. Live workload feeds, agent rosters, and action lists.
           </p>
         </div>
         <button
           onClick={fetchDashboardData}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-850 text-slate-400 hover:text-slate-200 rounded-xl transition duration-150"
+          className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 border border-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-xl transition-all duration-200 btn-press"
         >
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           <span className="text-xs font-semibold">Sync Workload</span>
@@ -112,41 +114,44 @@ const TeamLeadDashboard = () => {
       </div>
 
       {/* Telemetry Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {[
-          { name: 'Total Division Cases', value: stats.total, icon: FileText, color: 'text-indigo-400', bg: 'bg-indigo-500/10', hoverBorder: 'hover:border-indigo-500/30' },
-          { name: 'Unassigned Backlog', value: stats.unassigned, icon: Clock, color: 'text-blue-400', bg: 'bg-blue-500/10', hoverBorder: 'hover:border-blue-500/30' },
-          { name: 'In Progress Cases', value: stats.inProgress, icon: RefreshCw, color: 'text-amber-400', bg: 'bg-amber-500/10', hoverBorder: 'hover:border-amber-500/30' },
-          { name: 'Resolved Cases', value: stats.closed, icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10', hoverBorder: 'hover:border-emerald-500/30' },
+          { name: 'Total Division Cases', value: stats.total, icon: FileText, color: 'text-indigo-400', bg: 'bg-indigo-500/10', borderHover: 'hover:border-indigo-500/40' },
+          { name: 'Unassigned Backlog', value: stats.unassigned, icon: Clock, color: 'text-blue-400', bg: 'bg-blue-500/10', borderHover: 'hover:border-blue-500/40' },
+          { name: 'In Progress Cases', value: stats.inProgress, icon: RefreshCw, color: 'text-amber-400', bg: 'bg-amber-500/10', borderHover: 'hover:border-amber-500/40' },
+          { name: 'Resolved Cases', value: stats.closed, icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10', borderHover: 'hover:border-emerald-500/40' },
         ].map((stat, idx) => {
           const Icon = stat.icon;
           return (
             <div
               key={idx}
               onClick={() => navigate('/team-lead/tickets')}
-              className={`bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-md flex items-center gap-4 cursor-pointer relative overflow-hidden transition-all duration-200 active:scale-98 ${stat.hoverBorder}`}
+              className={`bg-slate-900/80 border border-slate-800/60 rounded-2xl p-5 flex items-center gap-4 cursor-pointer relative overflow-hidden transition-all duration-300 card-hover ${stat.borderHover}`}
             >
-              <div className={`p-3 rounded-xl ${stat.bg}`}>
+              <div className={`p-3.5 rounded-xl ${stat.bg}`}>
                 <Icon className={`h-6 w-6 ${stat.color}`} />
               </div>
               <div>
                 <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">{stat.name}</p>
                 <p className="text-2xl font-bold text-slate-100 mt-0.5">{stat.value}</p>
               </div>
+              <div className="absolute -right-4 -bottom-4 opacity-5">
+                <Icon className={`h-20 w-20 ${stat.color}`} />
+              </div>
             </div>
           );
         })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Telemetry Graph */}
-        <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg space-y-4 flex flex-col justify-between">
+        <div className="lg:col-span-2 bg-slate-900/80 border border-slate-800/60 rounded-2xl p-6 shadow-lg space-y-4 flex flex-col justify-between">
           <div>
             <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-              <TrendingUp className="h-4.5 w-4.5 text-indigo-400" />
+              <TrendingUp className="h-4 w-4 text-indigo-400" />
               Workload Concentration by Priority
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">Critical breakdowns showing case severity distribution.</p>
+            <p className="text-xs text-slate-500 mt-1">Critical breakdowns showing case severity distribution.</p>
           </div>
           <div className="h-64 mt-4">
             <ResponsiveContainer width="100%" height="100%">
@@ -155,23 +160,29 @@ const TeamLeadDashboard = () => {
                 <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} />
                 <YAxis stroke="#64748b" fontSize={11} tickLine={false} allowDecimals={false} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f1f5f9', borderRadius: '12px' }}
+                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#f1f5f9', borderRadius: '12px', boxShadow: '0 10px 40px -10px rgba(0,0,0,0.5)' }}
                   cursor={{ fill: '#1e293b', opacity: 0.2 }}
                 />
-                <Bar dataKey="Tickets" fill="#6366f1" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="Tickets" fill="url(#leadBarGradient)" radius={[8, 8, 0, 0]} />
+                <defs>
+                  <linearGradient id="leadBarGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#818cf8" />
+                    <stop offset="100%" stopColor="#6366f1" />
+                  </linearGradient>
+                </defs>
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Division Agent Roster */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg space-y-4">
+        <div className="bg-slate-900/80 border border-slate-800/60 rounded-2xl p-6 shadow-lg space-y-4">
           <div>
             <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-              <Users className="h-4.5 w-4.5 text-indigo-400" />
+              <Users className="h-4 w-4 text-indigo-400" />
               Division Roster ({teamMembers.length})
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">Active support agents assigned to this team.</p>
+            <p className="text-xs text-slate-500 mt-1">Active support agents assigned to this team.</p>
           </div>
 
           <div className="space-y-3 max-h-64 overflow-y-auto pr-1">

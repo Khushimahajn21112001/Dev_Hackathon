@@ -137,19 +137,21 @@ const SupportMyTickets = () => {
   return (
     <div className="p-6 md:p-8 space-y-8 font-sans animate-fade-in text-slate-100 bg-slate-950 min-h-full">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/60 pb-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl flex items-center gap-2">
-            <FileText className="h-7 w-7 text-indigo-400" />
+          <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl flex items-center gap-3">
+            <div className="p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/20">
+              <FileText className="h-6 w-6 text-indigo-400" />
+            </div>
             <span>Agent Resolution Desk</span>
           </h1>
-          <p className="text-sm text-slate-400 mt-1.5">
-            Manage your personal workload, progress incidents, and sync closed tickets to the corporate knowledge base.
+          <p className="text-sm text-slate-400 mt-2 ml-[52px]">
+            Manage your personal workload, progress incidents, and sync closed tickets to the knowledge base.
           </p>
         </div>
         <button
           onClick={fetchTickets}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-850 text-slate-400 hover:text-slate-200 rounded-xl transition duration-150"
+          className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 border border-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-xl transition-all duration-200 btn-press"
         >
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           <span className="text-xs font-semibold">Sync Registry</span>
@@ -157,14 +159,14 @@ const SupportMyTickets = () => {
       </div>
 
       {/* Telemetry Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-5">
         {[
           { name: 'Total Cases Assigned', value: stats.total, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
           { name: 'Assigned (New)', value: stats.assigned, color: 'text-blue-400', bg: 'bg-blue-500/10' },
           { name: 'In Progress', value: stats.inProgress, color: 'text-amber-400', bg: 'bg-amber-500/10' },
           { name: 'Resolved / Closed', value: stats.closed, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
         ].map((stat, idx) => (
-          <div key={idx} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-md flex items-center gap-4">
+          <div key={idx} className="bg-slate-900/80 border border-slate-800/60 rounded-2xl p-5 shadow-md flex items-center gap-4 card-hover">
             <div className={`p-3 rounded-xl ${stat.bg}`}>
               <FileText className={`h-6 w-6 ${stat.color}`} />
             </div>
@@ -191,10 +193,10 @@ const SupportMyTickets = () => {
       )}
 
       {/* Filter panel */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div className="flex items-center gap-2 text-sm font-bold text-slate-350 uppercase tracking-wider">
-            <Filter className="h-4.5 w-4.5 text-indigo-400" />
+      <div className="bg-slate-900/80 border border-slate-800/60 rounded-2xl p-5 shadow-lg space-y-4 backdrop-blur-sm">
+        <div className="flex items-center justify-between border-b border-slate-800/60 pb-3">
+          <div className="flex items-center gap-2 text-sm font-bold text-slate-300 uppercase tracking-wider">
+            <Filter className="h-4 w-4 text-indigo-400" />
             Registry Filtering Panel
           </div>
           {(searchQuery || statusFilter) && (
@@ -203,7 +205,7 @@ const SupportMyTickets = () => {
                 setSearchQuery('');
                 setStatusFilter('');
               }}
-              className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 font-semibold"
+              className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-semibold transition-colors duration-200"
             >
               <X className="h-3.5 w-3.5" />
               Clear Filters
@@ -219,7 +221,7 @@ const SupportMyTickets = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by case #, title or description..."
-              className="w-full bg-slate-950 text-slate-350 border border-slate-850 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:border-indigo-500 focus:outline-none transition"
+              className="w-full bg-slate-950/60 text-slate-300 border border-slate-700/50 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 focus:outline-none transition-all duration-200 placeholder-slate-500"
             />
           </div>
 
@@ -227,7 +229,7 @@ const SupportMyTickets = () => {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full bg-slate-950 text-slate-350 border border-slate-850 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none cursor-pointer"
+              className="w-full bg-slate-950/60 text-slate-300 border border-slate-700/50 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 focus:outline-none cursor-pointer transition-all duration-200"
             >
               <option value="">All Case Statuses</option>
               <option value="Assigned">Assigned / Open</option>
@@ -239,7 +241,7 @@ const SupportMyTickets = () => {
       </div>
 
       {/* Roster Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg space-y-4">
+      <div className="bg-slate-900/80 border border-slate-800/60 rounded-2xl p-6 shadow-lg space-y-4 backdrop-blur-sm">
         <div>
           <h3 className="text-base font-bold text-white">Active Case Queue Registry ({filteredTickets.length} cases)</h3>
           <p className="text-xs text-slate-400 mt-1">Review parameters and initiate progress or submit resolution learning.</p>

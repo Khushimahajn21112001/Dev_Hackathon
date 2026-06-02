@@ -29,13 +29,12 @@ import {
 } from 'lucide-react';
 
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' or 'tickets'
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [tickets, setTickets] = useState([]);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [loading, setLoading] = useState(false);
   const [teams, setTeams] = useState([]);
 
-  // Stats State
   const [stats, setStats] = useState({
     total: 0,
     open: 0,
@@ -43,16 +42,13 @@ const AdminDashboard = () => {
     closed: 0,
   });
 
-  // Chart Data State
   const [teamChartData, setTeamChartData] = useState([]);
   const [priorityChartData, setPriorityChartData] = useState([]);
 
-  // Ticket Filters State
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [teamFilter, setTeamFilter] = useState('');
-
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -66,7 +62,6 @@ const AdminDashboard = () => {
       setTickets(allTickets);
       setTeams(teamsRes.data.teams || []);
 
-      // Calculate Stats
       const total = allTickets.length;
       const open = allTickets.filter(t => t.status === 'Open' || t.status === 'Assigned').length;
       const inProgress = allTickets.filter(t => t.status === 'In Progress').length;
@@ -74,7 +69,6 @@ const AdminDashboard = () => {
 
       setStats({ total, open, inProgress, closed });
 
-      // Group Tickets by Team for Bar Chart
       const teamCounts = {};
       teamsRes.data.teams.forEach(team => {
         teamCounts[team.name] = 0;
@@ -92,7 +86,6 @@ const AdminDashboard = () => {
       }));
       setTeamChartData(teamData);
 
-      // Stacked Bar Chart for Priority-wise tickets by Status
       const priorityMap = {
         Low: { name: 'Low', Open: 0, 'In Progress': 0, Closed: 0 },
         Medium: { name: 'Medium', Open: 0, 'In Progress': 0, Closed: 0 },
@@ -133,16 +126,12 @@ const AdminDashboard = () => {
     }
   }, [window.location.pathname]);
 
-
-  // --------------------------------------------------------------------------
-  // Navigation & Filtering via Graph Clicks
-  // --------------------------------------------------------------------------
   const navigateToTicketsWithFilters = (filters) => {
     if (filters.status !== undefined) setStatusFilter(filters.status);
     if (filters.priority !== undefined) setPriorityFilter(filters.priority);
     if (filters.team !== undefined) setTeamFilter(filters.team);
     setActiveTab('tickets');
-    setSelectedTicket(null); // Return to list view
+    setSelectedTicket(null);
   };
 
   const handleStatCardClick = (statusType) => {
@@ -172,10 +161,8 @@ const AdminDashboard = () => {
     setTeamFilter('');
   };
 
-  // Filter tickets dynamically for the Ticket List view
   const filteredTickets = useMemo(() => {
     return tickets.filter(ticket => {
-      // Search Query
       const title = ticket.ticketTitle || '';
       const desc = ticket.issueDescription || '';
       const num = ticket.ticketNumber || '';
@@ -184,15 +171,12 @@ const AdminDashboard = () => {
                             desc.toLowerCase().includes(query) ||
                             num.toLowerCase().includes(query);
 
-      // Status
       const matchesStatus = !statusFilter ? true :
                             statusFilter === 'Open' ? (ticket.status === 'Open' || ticket.status === 'Assigned') :
                             ticket.status === statusFilter;
 
-      // Priority
       const matchesPriority = !priorityFilter ? true : ticket.priority === priorityFilter;
 
-      // Team
       let matchesTeam = true;
       if (teamFilter) {
         if (teamFilter === 'Unassigned') {
@@ -225,34 +209,38 @@ const AdminDashboard = () => {
             />
           ) : (
             <div className="space-y-8 animate-fade-in">
-              {/* Premium Dashboard Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/60 pb-6">
                 <div>
-                  <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">Admin Command Desk</h1>
-                  <p className="text-sm text-slate-400 mt-1.5">
-                    Real-time visual operations dashboard, ticket routing controls, and re-assignment hub.
+                  <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl flex items-center gap-3">
+                    <div className="p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/20">
+                      <LayoutDashboard className="h-6 w-6 text-indigo-400" />
+                    </div>
+                    Admin Command Desk
+                  </h1>
+                  <p className="text-sm text-slate-400 mt-2 ml-[52px]">
+                    Real-time operations dashboard with ticket routing and re-assignment controls.
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => fetchDashboardData()}
-                    className="p-2.5 bg-slate-900 border border-slate-800 hover:bg-slate-850 text-slate-400 hover:text-slate-200 rounded-xl transition duration-150"
-                    title="Reload Dashboard"
-                  >
-                    <RefreshCw className={`h-4.5 w-4.5 ${loading ? 'animate-spin' : ''}`} />
-                  </button>
-                </div>
+                <button
+                  onClick={() => fetchDashboardData()}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-xl transition-all duration-200 btn-press"
+                  title="Reload Dashboard"
+                >
+                  <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                  <span className="text-xs font-semibold">Refresh</span>
+                </button>
               </div>
 
-              {/* Tab Navigation System */}
-              <div className="flex gap-2 p-1 bg-slate-900/60 border border-slate-800 rounded-xl max-w-sm">
+              {/* Tab Navigation */}
+              <div className="flex gap-1 p-1 bg-slate-900/60 border border-slate-800/60 rounded-xl max-w-sm backdrop-blur-sm">
                 <button
                   onClick={() => setActiveTab('dashboard')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-200 ${
                     activeTab === 'dashboard'
-                      ? 'bg-indigo-600 text-white shadow'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-600/20'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
                   }`}
                 >
                   <LayoutDashboard className="h-4 w-4" />
@@ -260,57 +248,56 @@ const AdminDashboard = () => {
                 </button>
                 <button
                   onClick={() => setActiveTab('tickets')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-200 ${
                     activeTab === 'tickets'
-                      ? 'bg-indigo-600 text-white shadow'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-600/20'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
                   }`}
                 >
                   <FileText className="h-4 w-4" />
-                  Tickets Section
+                  Tickets
                 </button>
               </div>
 
               {activeTab === 'dashboard' ? (
-                /* ================================================================== */
-                /* DASHBOARD VIEW                                                     */
-                /* ================================================================== */
                 <div className="space-y-8">
-                  {/* Interactive Analytics Stat Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {/* Stat Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                     {[
-                      { name: 'Total Tickets Raised', value: stats.total, type: 'Total', icon: FileText, color: 'text-indigo-400', bg: 'bg-indigo-500/10', hoverBorder: 'hover:border-indigo-500/30' },
-                      { name: 'Open Tickets', value: stats.open, type: 'Open', icon: Clock, color: 'text-blue-400', bg: 'bg-blue-500/10', hoverBorder: 'hover:border-blue-500/30' },
-                      { name: 'In Progress Tickets', value: stats.inProgress, type: 'In Progress', icon: RefreshCw, color: 'text-amber-400', bg: 'bg-amber-500/10', hoverBorder: 'hover:border-amber-500/30' },
-                      { name: 'Closed Tickets', value: stats.closed, type: 'Closed', icon: Check, color: 'text-emerald-400', bg: 'bg-emerald-500/10', hoverBorder: 'hover:border-emerald-500/30' },
+                      { name: 'Total Tickets', value: stats.total, type: 'Total', icon: FileText, color: 'text-indigo-400', bg: 'bg-indigo-500/10', borderHover: 'hover:border-indigo-500/40', shadow: 'hover:shadow-indigo-500/5' },
+                      { name: 'Open', value: stats.open, type: 'Open', icon: Clock, color: 'text-blue-400', bg: 'bg-blue-500/10', borderHover: 'hover:border-blue-500/40', shadow: 'hover:shadow-blue-500/5' },
+                      { name: 'In Progress', value: stats.inProgress, type: 'In Progress', icon: RefreshCw, color: 'text-amber-400', bg: 'bg-amber-500/10', borderHover: 'hover:border-amber-500/40', shadow: 'hover:shadow-amber-500/5' },
+                      { name: 'Closed', value: stats.closed, type: 'Closed', icon: Check, color: 'text-emerald-400', bg: 'bg-emerald-500/10', borderHover: 'hover:border-emerald-500/40', shadow: 'hover:shadow-emerald-500/5' },
                     ].map((stat, idx) => {
                       const Icon = stat.icon;
                       return (
                         <div
                           key={idx}
                           onClick={() => handleStatCardClick(stat.type)}
-                          className={`bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-md flex items-center gap-4 cursor-pointer relative overflow-hidden transition-all duration-200 active:scale-98 ${stat.hoverBorder}`}
+                          className={`bg-slate-900/80 border border-slate-800/60 rounded-2xl p-5 flex items-center gap-4 cursor-pointer relative overflow-hidden transition-all duration-300 card-hover ${stat.borderHover} hover:shadow-xl ${stat.shadow}`}
                         >
-                          <div className={`p-3.5 rounded-xl ${stat.bg}`}>
+                          <div className={`p-3.5 rounded-xl ${stat.bg} transition-transform duration-300 group-hover:scale-110`}>
                             <Icon className={`h-6 w-6 ${stat.color}`} />
                           </div>
                           <div>
                             <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">{stat.name}</p>
                             <p className="text-2xl font-bold text-slate-100 mt-0.5">{stat.value}</p>
                           </div>
-                          <div className="absolute right-3 bottom-3 text-[10px] text-indigo-500 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">Click to filter →</div>
+                          <div className="absolute -right-4 -bottom-4 opacity-5">
+                            <Icon className={`h-20 w-20 ${stat.color}`} />
+                          </div>
                         </div>
                       );
                     })}
                   </div>
 
-                  {/* Visualizations Grid */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Team-wise Tickets Bar Chart */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
-                      <div>
+                  {/* Charts */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Team Workload */}
+                    <div className="bg-slate-900/80 border border-slate-800/60 rounded-2xl p-6 shadow-lg">
+                      <div className="mb-5">
                         <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider">Team-Wise Workload</h3>
-                        <p className="text-xs text-slate-500 mt-0.5">Click any team bar to view and assign their specific tickets.</p>
+                        <p className="text-xs text-slate-500 mt-1">Click any bar to filter tickets by team.</p>
                       </div>
                       <div className="h-72">
                         {teamChartData.length > 0 ? (
@@ -320,29 +307,35 @@ const AdminDashboard = () => {
                               <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} />
                               <YAxis stroke="#64748b" fontSize={11} tickLine={false} allowDecimals={false} />
                               <Tooltip
-                                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f1f5f9', borderRadius: '12px' }}
+                                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#f1f5f9', borderRadius: '12px', boxShadow: '0 10px 40px -10px rgba(0,0,0,0.5)' }}
                                 cursor={{ fill: '#1e293b', opacity: 0.3 }}
                               />
                               <Bar
                                 dataKey="value"
-                                fill="#6366f1"
-                                radius={[6, 6, 0, 0]}
+                                fill="url(#barGradient)"
+                                radius={[8, 8, 0, 0]}
                                 cursor="pointer"
                                 onClick={(data) => handleTeamClick(data.name)}
                               />
+                              <defs>
+                                <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#818cf8" />
+                                  <stop offset="100%" stopColor="#6366f1" />
+                                </linearGradient>
+                              </defs>
                             </BarChart>
                           </ResponsiveContainer>
                         ) : (
-                          <div className="h-full flex items-center justify-center text-xs text-slate-500">No chart telemetry available</div>
+                          <div className="h-full flex items-center justify-center text-xs text-slate-500">No data available</div>
                         )}
                       </div>
                     </div>
 
-                    {/* Priority-wise Tickets by Status Stacked Bar Chart */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider">Priority Breakdown By Status</h3>
-                        <p className="text-xs text-slate-500 mt-0.5">Click a stacked bar segment to filter tickets by status and priority.</p>
+                    {/* Priority Breakdown */}
+                    <div className="bg-slate-900/80 border border-slate-800/60 rounded-2xl p-6 shadow-lg">
+                      <div className="mb-5">
+                        <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider">Priority Breakdown</h3>
+                        <p className="text-xs text-slate-500 mt-1">Click segments to filter by status and priority.</p>
                       </div>
                       <div className="h-72">
                         <ResponsiveContainer width="100%" height="100%">
@@ -351,7 +344,7 @@ const AdminDashboard = () => {
                             <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} />
                             <YAxis stroke="#64748b" fontSize={11} tickLine={false} allowDecimals={false} />
                             <Tooltip
-                              contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f1f5f9', borderRadius: '12px' }}
+                              contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#f1f5f9', borderRadius: '12px', boxShadow: '0 10px 40px -10px rgba(0,0,0,0.5)' }}
                               cursor={{ fill: '#1e293b', opacity: 0.3 }}
                             />
                             <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '11px', color: '#94a3b8' }} />
@@ -376,7 +369,7 @@ const AdminDashboard = () => {
                               stackId="priority"
                               fill="#10b981"
                               cursor="pointer"
-                              radius={[4, 4, 0, 0]}
+                              radius={[6, 6, 0, 0]}
                               onClick={(data) => handlePriorityClick(data.name, 'Closed')}
                             />
                           </BarChart>
@@ -386,121 +379,111 @@ const AdminDashboard = () => {
                   </div>
                 </div>
               ) : (
-                /* ================================================================== */
-                /* TICKETS SECTION                                                    */
-                /* ================================================================== */
+                /* TICKETS SECTION */
                 <div className="space-y-6">
-                  {/* Interactive Filtering Panel */}
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
-                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                      <div className="flex items-center gap-2 text-sm font-bold text-slate-350 uppercase tracking-wider">
+                  {/* Filter Panel */}
+                  <div className="bg-slate-900/80 border border-slate-800/60 rounded-2xl p-5 shadow-lg space-y-4 backdrop-blur-sm">
+                    <div className="flex items-center justify-between border-b border-slate-800/60 pb-3">
+                      <div className="flex items-center gap-2 text-sm font-bold text-slate-300 uppercase tracking-wider">
                         <Filter className="h-4 w-4 text-indigo-400" />
-                        Ticket List Filter Controls
+                        Filter Controls
                       </div>
                       {(searchQuery || statusFilter || priorityFilter || teamFilter) && (
                         <button
                           onClick={handleClearFilters}
-                          className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 font-semibold"
+                          className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-semibold transition-colors duration-200"
                         >
                           <X className="h-3.5 w-3.5" />
-                          Clear All Filters
+                          Clear All
                         </button>
                       )}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {/* Search Bar */}
                       <div className="relative">
                         <Search className="h-4 w-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                         <input
                           type="text"
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
-                          placeholder="Search title, description or #..."
-                          className="w-full bg-slate-950 text-slate-300 border border-slate-850 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:border-indigo-500 focus:outline-none transition"
+                          placeholder="Search tickets..."
+                          className="w-full bg-slate-950/60 text-slate-300 border border-slate-700/50 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 focus:outline-none transition-all duration-200 placeholder-slate-500"
                         />
                       </div>
 
-                      {/* Status Dropdown */}
-                      <div>
-                        <select
-                          value={statusFilter}
-                          onChange={(e) => setStatusFilter(e.target.value)}
-                          className="w-full bg-slate-950 text-slate-300 border border-slate-850 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none cursor-pointer"
-                        >
-                          <option value="">All Statuses</option>
-                          <option value="Open">Open / Unassigned</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="Closed">Closed</option>
-                        </select>
-                      </div>
+                      <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="w-full bg-slate-950/60 text-slate-300 border border-slate-700/50 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 focus:outline-none cursor-pointer transition-all duration-200"
+                      >
+                        <option value="">All Statuses</option>
+                        <option value="Open">Open / Unassigned</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Closed">Closed</option>
+                      </select>
 
-                      {/* Priority Dropdown */}
-                      <div>
-                        <select
-                          value={priorityFilter}
-                          onChange={(e) => setPriorityFilter(e.target.value)}
-                          className="w-full bg-slate-950 text-slate-300 border border-slate-850 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none cursor-pointer"
-                        >
-                          <option value="">All Priorities</option>
-                          <option value="Low">Low</option>
-                          <option value="Medium">Medium</option>
-                          <option value="High">High</option>
-                        </select>
-                      </div>
+                      <select
+                        value={priorityFilter}
+                        onChange={(e) => setPriorityFilter(e.target.value)}
+                        className="w-full bg-slate-950/60 text-slate-300 border border-slate-700/50 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 focus:outline-none cursor-pointer transition-all duration-200"
+                      >
+                        <option value="">All Priorities</option>
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                      </select>
 
-                      {/* Assigned Team Dropdown */}
-                      <div>
-                        <select
-                          value={teamFilter}
-                          onChange={(e) => setTeamFilter(e.target.value)}
-                          className="w-full bg-slate-950 text-slate-300 border border-slate-850 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none cursor-pointer"
-                        >
-                          <option value="">All Teams</option>
-                          <option value="Unassigned">Unassigned (General Queue)</option>
-                          {teams.map(t => (
-                            <option key={t._id} value={t.name}>{t.name}</option>
-                          ))}
-                        </select>
-                      </div>
+                      <select
+                        value={teamFilter}
+                        onChange={(e) => setTeamFilter(e.target.value)}
+                        className="w-full bg-slate-950/60 text-slate-300 border border-slate-700/50 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 focus:outline-none cursor-pointer transition-all duration-200"
+                      >
+                        <option value="">All Teams</option>
+                        <option value="Unassigned">Unassigned</option>
+                        {teams.map(t => (
+                          <option key={t._id} value={t.name}>{t.name}</option>
+                        ))}
+                      </select>
                     </div>
 
-                    {/* Active Filters Summary */}
+                    {/* Active Filter Tags */}
                     {(statusFilter || priorityFilter || teamFilter || searchQuery) && (
                       <div className="flex flex-wrap gap-2 pt-2">
                         {statusFilter && (
                           <span className="flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold px-2.5 py-1 rounded-full">
                             Status: {statusFilter}
-                            <X className="h-3 w-3 cursor-pointer hover:text-white" onClick={() => setStatusFilter('')} />
+                            <X className="h-3 w-3 cursor-pointer hover:text-white transition-colors" onClick={() => setStatusFilter('')} />
                           </span>
                         )}
                         {priorityFilter && (
                           <span className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-semibold px-2.5 py-1 rounded-full">
                             Priority: {priorityFilter}
-                            <X className="h-3 w-3 cursor-pointer hover:text-white" onClick={() => setPriorityFilter('')} />
+                            <X className="h-3 w-3 cursor-pointer hover:text-white transition-colors" onClick={() => setPriorityFilter('')} />
                           </span>
                         )}
                         {teamFilter && (
                           <span className="flex items-center gap-1.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold px-2.5 py-1 rounded-full">
                             Team: {teamFilter}
-                            <X className="h-3 w-3 cursor-pointer hover:text-white" onClick={() => setTeamFilter('')} />
+                            <X className="h-3 w-3 cursor-pointer hover:text-white transition-colors" onClick={() => setTeamFilter('')} />
                           </span>
                         )}
                         {searchQuery && (
                           <span className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold px-2.5 py-1 rounded-full">
-                            Query: "{searchQuery}"
-                            <X className="h-3 w-3 cursor-pointer hover:text-white" onClick={() => setSearchQuery('')} />
+                            Search: "{searchQuery}"
+                            <X className="h-3 w-3 cursor-pointer hover:text-white transition-colors" onClick={() => setSearchQuery('')} />
                           </span>
                         )}
                       </div>
                     )}
                   </div>
 
-                  {/* Incident Table */}
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
-                    <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-base font-bold text-slate-200">Incident Registry ({filteredTickets.length} items)</h2>
-                      <span className="text-xs text-slate-500">Select any ticket to view live chats or update assignments.</span>
+                  {/* Ticket List */}
+                  <div className="bg-slate-900/80 border border-slate-800/60 rounded-2xl p-5 shadow-lg">
+                    <div className="flex items-center justify-between mb-5">
+                      <h2 className="text-base font-bold text-slate-200">
+                        Incident Registry <span className="text-slate-500 font-normal">({filteredTickets.length} items)</span>
+                      </h2>
+                      <span className="text-xs text-slate-500 hidden sm:block">Click a ticket for details</span>
                     </div>
                     <TicketList
                       tickets={filteredTickets}
@@ -514,7 +497,6 @@ const AdminDashboard = () => {
           )}
         </main>
       </div>
-
     </div>
   );
 };

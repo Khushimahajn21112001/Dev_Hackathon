@@ -24,7 +24,7 @@ const TicketList = ({ tickets, onSelectTicket, loading }) => {
       case 'Medium':
         return 'text-yellow-400';
       case 'Low':
-        return 'text-slate-400';
+        return 'text-emerald-400';
       default:
         return 'text-slate-400';
     }
@@ -32,36 +32,48 @@ const TicketList = ({ tickets, onSelectTicket, loading }) => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      <div className="space-y-3.5">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="bg-slate-950/60 border border-slate-800/50 p-5 rounded-2xl animate-pulse">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="h-5 w-20 bg-slate-800 rounded-lg"></div>
+              <div className="h-5 w-16 bg-slate-800 rounded-full"></div>
+            </div>
+            <div className="h-5 w-3/4 bg-slate-800 rounded-lg mb-2"></div>
+            <div className="h-4 w-1/2 bg-slate-800/60 rounded-lg"></div>
+          </div>
+        ))}
       </div>
     );
   }
 
   if (!tickets || tickets.length === 0) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center text-slate-400">
-        <ShieldAlert className="h-10 w-10 mx-auto text-slate-500 mb-3" />
-        <p className="font-semibold text-slate-300">No tickets found</p>
-        <p className="text-sm mt-1">There are currently no tickets matching this description.</p>
+      <div className="bg-slate-900/60 border border-slate-800/50 rounded-2xl p-10 text-center">
+        <div className="inline-flex p-4 bg-slate-800/50 rounded-2xl border border-slate-700/50 mb-4">
+          <ShieldAlert className="h-10 w-10 text-slate-500" />
+        </div>
+        <p className="font-semibold text-slate-300 text-base">No tickets found</p>
+        <p className="text-sm text-slate-500 mt-1.5 max-w-sm mx-auto">There are currently no tickets matching your criteria.</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3.5">
-      {tickets.map((ticket) => (
+    <div className="space-y-3">
+      {tickets.map((ticket, index) => (
         <div
           key={ticket._id}
           onClick={() => onSelectTicket(ticket)}
-          className="group bg-slate-900/80 hover:bg-slate-900 border border-slate-800/80 hover:border-indigo-500/30 p-5 rounded-2xl shadow-md transition-all duration-200 cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4"
+          className="group bg-slate-950/50 hover:bg-slate-900/80 border border-slate-800/50 hover:border-indigo-500/30 p-5 rounded-2xl transition-all duration-300 cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 animate-slide-up"
+          style={{ animationDelay: `${index * 40}ms` }}
         >
           <div className="space-y-2.5">
             <div className="flex flex-wrap items-center gap-2.5">
-              <span className="font-mono text-xs font-bold px-2.5 py-1 bg-slate-950 border border-slate-800 rounded-lg text-slate-300">
+              <span className="font-mono text-xs font-bold px-2.5 py-1 bg-slate-900 border border-slate-700/50 rounded-lg text-slate-300">
                 {ticket.ticketNumber}
               </span>
-              <span className={`text-xs px-2.5 py-0.5 rounded-full border ${getStatusStyle(ticket.status)}`}>
+              <span className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold ${getStatusStyle(ticket.status)}`}>
                 {ticket.status}
               </span>
               <span className={`text-xs flex items-center gap-1 font-semibold ${getPriorityStyle(ticket.priority)}`}>
@@ -70,7 +82,7 @@ const TicketList = ({ tickets, onSelectTicket, loading }) => {
               </span>
             </div>
 
-            <h3 className="text-base font-semibold text-slate-200 group-hover:text-indigo-400 transition duration-150 line-clamp-1">
+            <h3 className="text-base font-semibold text-slate-200 group-hover:text-indigo-300 transition-colors duration-200 line-clamp-1">
               {ticket.ticketTitle || ticket.issueDescription}
             </h3>
 
@@ -93,7 +105,7 @@ const TicketList = ({ tickets, onSelectTicket, loading }) => {
           </div>
 
           <div className="flex items-center justify-end">
-            <div className="p-2 bg-slate-950/80 border border-slate-800/85 rounded-xl group-hover:bg-indigo-600/10 group-hover:text-indigo-400 group-hover:border-indigo-500/20 text-slate-400 transition-all duration-200">
+            <div className="p-2.5 bg-slate-900/80 border border-slate-700/50 rounded-xl group-hover:bg-indigo-600/10 group-hover:text-indigo-400 group-hover:border-indigo-500/30 text-slate-500 transition-all duration-300">
               <ArrowRight className="h-5 w-5" />
             </div>
           </div>
