@@ -308,18 +308,7 @@ const Login = () => {
             </div>
           </div>
 
-          {/* Quick Access Roles (helpful hint) */}
-          <div className="mt-6 p-4 bg-slate-900/40 border border-slate-800/40 rounded-xl">
-            <p className="text-xs font-semibold text-slate-400 mb-3 uppercase tracking-wider">Available Roles</p>
-            <div className="grid grid-cols-2 gap-2">
-              {['Admin', 'Corporate User', 'Support User', 'Team Lead'].map((role) => (
-                <div key={role} className="flex items-center gap-2 text-xs text-slate-500">
-                  <div className="h-1.5 w-1.5 rounded-full bg-indigo-500/60"></div>
-                  {role}
-                </div>
-              ))}
-            </div>
-          </div>
+
         </div>
       </div>
     </div>
