@@ -1,6 +1,7 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
 const ResolutionKB = require('./src/models/ResolutionKB');
+const Team = require('./src/models/Team');
 const { generateEmbedding } = require('./src/utils/aiMatching');
 const ragService = require('./src/services/ragService');
 

@@ -90,16 +90,16 @@ const TicketDetail = ({ ticket, onBack, onUpdate, userRole }) => {
     }
   };
 
-  const handleCloseTicket = async (e) => {
+  const handleSaveResolution = async (e) => {
     e.preventDefault();
     setClosing(true);
-    const stepsArray = stepsInput.split('\n').filter((s) => s.trim() !== '');
 
     try {
-      const response = await axios.patch(`http://localhost:5000/api/tickets/close/${ticket._id}`, {
+      const response = await axios.patch(`http://localhost:5000/api/support/tickets/${ticket._id}/provide-resolution`, {
         rootCause,
-        steps: stepsArray,
-        reusable: reusable === 'Yes',
+        resolutionSteps: stepsInput.trim(),
+        reusableFix: reusable === 'Yes',
+        supportUserId: userId,
       });
       setLearningModal(false);
       onUpdate(response.data.ticket);
@@ -149,36 +149,6 @@ const TicketDetail = ({ ticket, onBack, onUpdate, userRole }) => {
         >
           ← Back to List
         </button>
-
-        <div className="flex gap-2.5">
-          {userRole === 'Support User' && ticket.status === 'Open' && (
-            <button
-              onClick={handlePickTicket}
-              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-indigo-500/20 active:scale-95 transition-all duration-150"
-            >
-              Pick Up Ticket
-            </button>
-          )}
-
-          {userRole === 'Support User' && (ticket.status === 'Assigned' || ticket.status === 'In Progress') && (
-            <button
-              onClick={() => setLearningModal(true)}
-              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-emerald-500/20 active:scale-95 transition-all duration-150"
-            >
-              Close Ticket & Learn
-            </button>
-          )}
-
-          {userRole === 'Admin' && ticket.status !== 'Closed' && (
-            <button
-              onClick={() => setForceCloseModal(true)}
-              className="px-4 py-2.5 bg-red-600/20 border border-red-500/30 hover:bg-red-600/30 text-red-400 text-sm font-bold rounded-xl shadow-lg active:scale-95 transition-all duration-150 flex items-center gap-2"
-            >
-              <ShieldClose className="h-4 w-4" />
-              Force Close
-            </button>
-          )}
-        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -206,7 +176,7 @@ const TicketDetail = ({ ticket, onBack, onUpdate, userRole }) => {
             </h2>
             {ticket.ticketTitle && (
               <p className="text-sm text-slate-400 mt-2 italic leading-relaxed">
-                Raw Input: {ticket.issueDescription}
+                Description: {ticket.issueDescription}
               </p>
             )}
 
@@ -234,6 +204,38 @@ const TicketDetail = ({ ticket, onBack, onUpdate, userRole }) => {
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* Action buttons (moved from top) */}
+            <div className="flex gap-2.5 mt-6 pt-6 border-t border-slate-800">
+              {userRole === 'Support User' && ticket.status === 'Open' && (
+                <button
+                  onClick={handlePickTicket}
+                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-indigo-500/20 active:scale-95 transition-all duration-150"
+                >
+                  Pick Up Ticket
+                </button>
+              )}
+
+              {(userRole === 'Support User' || userRole === 'Admin') && (ticket.status === 'Open' || ticket.status === 'Assigned' || ticket.status === 'In Progress') && (
+                <button
+                  onClick={() => setLearningModal(true)}
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-emerald-500/20 active:scale-95 transition-all duration-150 flex items-center gap-2"
+                >
+                  <CheckSquare className="h-4.5 w-4.5" />
+                  Provide Resolution
+                </button>
+              )}
+
+              {userRole === 'Admin' && ticket.status !== 'Closed' && (
+                <button
+                  onClick={() => setForceCloseModal(true)}
+                  className="px-4 py-2.5 bg-red-600/20 border border-red-500/30 hover:bg-red-600/30 text-red-400 text-sm font-bold rounded-xl shadow-lg active:scale-95 transition-all duration-150 flex items-center gap-2"
+                >
+                  <ShieldClose className="h-4 w-4" />
+                  Force Close
+                </button>
+              )}
             </div>
           </div>
 
@@ -271,57 +273,7 @@ const TicketDetail = ({ ticket, onBack, onUpdate, userRole }) => {
             </div>
           )}
 
-          {/* Timeline Panel */}
-          {userRole === 'Admin' && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-              <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider mb-5 flex items-center gap-2">
-                <History className="h-4 w-4 text-blue-400" />
-                Ticket Timeline
-              </h3>
-              
-              <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-slate-800 before:via-slate-700 before:to-slate-800">
-                {logs.length === 0 ? (
-                  <p className="text-sm text-slate-500 italic text-center relative z-10">No timeline data available.</p>
-                ) : (
-                  logs.map((log) => (
-                    <div key={log._id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                      {/* Icon */}
-                      <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-slate-900 bg-slate-800 text-slate-400 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
-                        {log.action.includes('Force closed') ? <ShieldClose className="h-4 w-4 text-red-400" /> :
-                         log.action.includes('Resolution') ? <CheckCircle className="h-4 w-4 text-emerald-400" /> :
-                         <Clock className="h-4 w-4" />}
-                      </div>
-                      
-                      {/* Card */}
-                      <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-slate-800 bg-slate-950/50 shadow-sm relative">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 mb-1">
-                          <h4 className="font-bold text-sm text-slate-200">{log.action}</h4>
-                          <span className="text-[10px] text-slate-500 font-mono">
-                            {new Date(log.createdAt).toLocaleString()}
-                          </span>
-                        </div>
-                        <div className="text-xs text-slate-400 mb-2">
-                          By: {log.performedBy ? `${log.performedBy.name || log.performedBy.username} (${log.performedBy.role})` : 'System'}
-                        </div>
-                        {(log.oldStatus || log.newStatus) && (
-                          <div className="flex items-center gap-2 mb-2 text-[10px] font-semibold">
-                            {log.oldStatus && <span className="bg-slate-800 px-2 py-0.5 rounded text-slate-400">{log.oldStatus}</span>}
-                            {log.oldStatus && log.newStatus && <span className="text-slate-600">→</span>}
-                            {log.newStatus && <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded">{log.newStatus}</span>}
-                          </div>
-                        )}
-                        {log.remarks && (
-                          <p className="text-xs text-slate-300 mt-2 bg-slate-900 p-2 rounded border border-slate-800/60">
-                            "{log.remarks}"
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
+
 
           {/* Chat Panel */}
           {userRole !== 'Admin' && (ticket.status === 'Assigned' || ticket.status === 'In Progress' || ticket.status === 'Closed') && (
@@ -413,12 +365,12 @@ const TicketDetail = ({ ticket, onBack, onUpdate, userRole }) => {
                 <Award className="h-6 w-6 text-emerald-400" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-100">AI Knowledge Engineering</h3>
-                <p className="text-xs text-slate-400">Close the ticket and feed the resolution engine</p>
+                <h3 className="text-lg font-bold text-slate-100">Enter Resolutions</h3>
+                <p className="text-xs text-slate-400">Enter ticket resolution details</p>
               </div>
             </div>
 
-            <form onSubmit={handleCloseTicket} className="mt-5 space-y-4">
+            <form onSubmit={handleSaveResolution} className="mt-5 space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Root Cause</label>
                 <input
@@ -475,7 +427,7 @@ const TicketDetail = ({ ticket, onBack, onUpdate, userRole }) => {
                   disabled={closing}
                   className="flex items-center gap-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:pointer-events-none text-white text-sm font-semibold rounded-xl shadow-lg shadow-emerald-500/25 active:scale-95 transition-all duration-150"
                 >
-                  Confirm Closure
+                  Save
                 </button>
               </div>
             </form>

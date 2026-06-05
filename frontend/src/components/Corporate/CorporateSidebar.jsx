@@ -1,17 +1,29 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { MessageSquarePlus, FileText, Bell, LogOut, Shield, User } from 'lucide-react';
+import { MessageSquarePlus, FileText, Bell, LogOut, Shield, User, KeyRound } from 'lucide-react';
+import axios from 'axios';
 
 const CorporateSidebar = () => {
   const navigate = useNavigate();
   const username = localStorage.getItem('username') || 'User';
   const role = localStorage.getItem('role') || 'Corporate User';
+  const [moduleActive, setModuleActive] = useState(false);
 
-  const menuItems = [
+  useEffect(() => {
+    axios.get('http://localhost:5000/api/access-requests/module-status')
+      .then(res => setModuleActive(res.data.active))
+      .catch(() => setModuleActive(false));
+  }, []);
+
+  const baseItems = [
     { path: '/corporate/raise-request', name: 'Raise Request', icon: MessageSquarePlus },
     { path: '/corporate/my-tickets', name: 'My Tickets', icon: FileText },
     { path: '/corporate/notifications', name: 'Notifications', icon: Bell },
   ];
+
+  const menuItems = moduleActive
+    ? [...baseItems, { path: '/corporate/my-access-requests', name: 'Access Requests', icon: KeyRound }]
+    : baseItems;
 
   const handleLogout = () => {
     localStorage.clear();
@@ -79,3 +91,4 @@ const CorporateSidebar = () => {
 };
 
 export default CorporateSidebar;
+

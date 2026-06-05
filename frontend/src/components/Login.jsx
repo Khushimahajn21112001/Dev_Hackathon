@@ -43,6 +43,8 @@ const Login = () => {
         navigate('/support/tickets');
       } else if (role === 'Team Lead') {
         navigate('/team-lead/dashboard');
+      } else if (role === 'Credential Admin') {
+        navigate('/credential-admin/dashboard');
       } else {
         setError('Unknown role assigned');
       }

@@ -89,7 +89,7 @@ router.patch('/tickets/:ticketId/assign', async (req, res) => {
         return res.status(404).json({ message: 'Support User not found' });
       }
       ticket.assignedTo = assignedToId;
-      ticket.status = 'Assigned';
+      ticket.status = 'In Progress';
     } else {
       ticket.assignedTo = null;
       ticket.status = 'Open';
@@ -108,7 +108,7 @@ router.patch('/tickets/:ticketId/assign', async (req, res) => {
     if (populatedTicket.raisedBy) {
       let msg = `Your ticket #${populatedTicket.ticketNumber} has been updated.`;
       if (assignedUser) {
-        msg = `Your ticket #${populatedTicket.ticketNumber} has been assigned to ${assignedUser.name || assignedUser.username}.`;
+        msg = `Your ticket #${populatedTicket.ticketNumber} has been assigned to ${assignedUser.name || assignedUser.username} and is now In Progress.`;
       }
       await Notification.create({
         userId: populatedTicket.raisedBy._id,

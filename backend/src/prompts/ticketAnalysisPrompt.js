@@ -5,8 +5,11 @@
  * @param {string[]} availableTeams - List of available team names from the database
  * @returns {string} The system prompt string
  */
-function getTicketAnalysisPrompt(availableTeams) {
+function getTicketAnalysisPrompt(availableTeams, selectedCategory) {
+  const categoryHint = selectedCategory ? `User pre‑selected category: ${selectedCategory}. Use this as helpful context but feel free to override if the issue description strongly indicates another category.` : '';
   return `You are an expert IT Service Desk AI Agent. Your task is to analyze a raw user issue and generate a specific, support-friendly IT ticket.
+
+${categoryHint}
 
 CRITICAL RULES:
 1. Do NOT use vague generic titles like "Laptop Performance Issue", "Application Issue", "Access Issue", "Network Issue", or "General Issue".

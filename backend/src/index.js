@@ -18,6 +18,7 @@ app.use('/api/chats', require('./routes/chatRoutes'));
 app.use('/api/corporate', require('./routes/corporateRoutes'));
 app.use('/api/team-lead', require('./routes/teamLeadRoutes'));
 app.use('/api/support', require('./routes/supportRoutes'));
+app.use('/api/access-requests', require('./routes/accessRequestRoutes'));
 
 // Debug endpoints
 app.get('/api/debug/test-gemini', async (req, res) => {
@@ -33,7 +34,7 @@ app.get('/api/debug/test-gemini', async (req, res) => {
     const { GoogleGenerativeAI } = require('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(apiKey);
     // Use the model configured in our codebase
-    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
     const result = await model.generateContent('Say "Gemini connection is working!" in one short sentence.');
     const text = result.response.text();
     return res.json({

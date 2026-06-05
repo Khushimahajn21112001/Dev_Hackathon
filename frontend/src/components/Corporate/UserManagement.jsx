@@ -497,6 +497,7 @@ const UserManagement = () => {
                   <option value="Team Lead">Team Lead</option>
                   <option value="Support User">Support User</option>
                   <option value="Corporate User">Corporate User</option>
+                  <option value="Credential Admin">Credential Admin</option>
                 </select>
               </div>
 
@@ -597,6 +598,7 @@ const UserManagement = () => {
                   <option value="Team Lead">Team Lead</option>
                   <option value="Support User">Support User</option>
                   <option value="Corporate User">Corporate User</option>
+                  <option value="Credential Admin">Credential Admin</option>
                 </select>
               </div>
 

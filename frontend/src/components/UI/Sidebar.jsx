@@ -10,7 +10,8 @@ import {
   Shield, 
   User,
   Layers,
-  BookOpen
+  BookOpen,
+  KeyRound
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -24,6 +25,7 @@ const Sidebar = () => {
       { path: '/admin/teams', name: 'Team Management', icon: Layers },
       { path: '/admin/users', name: 'User Management', icon: Users },
       { path: '/admin/tickets', name: 'Manage Tickets', icon: FileText },
+      { path: '/admin/access-requests', name: 'Access Requests', icon: KeyRound },
       { path: '/admin/resolution-kb', name: 'Resolution KB', icon: BookOpen },
     ],
     'Team Lead': [

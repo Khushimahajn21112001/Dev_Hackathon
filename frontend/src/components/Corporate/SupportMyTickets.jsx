@@ -60,7 +60,11 @@ const SupportMyTickets = () => {
 
       if (response.data.success) {
         setSuccess('Case is now marked In Progress. Resolve ASAP!');
+        const updatedTicket = response.data.ticket;
         fetchTickets();
+        if (selectedTicket && selectedTicket._id === ticketId) {
+          setSelectedTicket(updatedTicket);
+        }
         setTimeout(() => setSuccess(''), 3000);
       }
     } catch (err) {
@@ -264,7 +268,6 @@ const SupportMyTickets = () => {
                 <tr className="text-slate-400 font-semibold pb-3 text-left">
                   <th className="pb-3 font-semibold">Incident #</th>
                   <th className="pb-3 font-semibold">Incident Title</th>
-                  <th className="pb-3 font-semibold">Description</th>
                   <th className="pb-3 font-semibold">Category</th>
                   <th className="pb-3 font-semibold text-center">Priority</th>
                   <th className="pb-3 font-semibold text-center">Status</th>
@@ -277,10 +280,7 @@ const SupportMyTickets = () => {
                 {filteredTickets.map((ticket) => (
                   <tr key={ticket._id} className="hover:bg-slate-850/20 transition-colors">
                     <td className="py-4 font-mono font-bold text-slate-450 text-xs">{ticket.ticketNumber}</td>
-                    <td className="py-4 pr-4 font-bold text-white max-w-[150px] truncate">{ticket.ticketTitle}</td>
-                    <td className="py-4 text-xs text-slate-450 max-w-[200px] truncate" title={ticket.issueDescription}>
-                      {ticket.issueDescription}
-                    </td>
+                    <td className="py-4 pr-4 font-bold text-white max-w-[220px] truncate" title={ticket.ticketTitle}>{ticket.ticketTitle}</td>
                     <td className="py-4 text-slate-400">{ticket.category}</td>
                     <td className="py-4 text-center">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
@@ -309,7 +309,7 @@ const SupportMyTickets = () => {
                     <td className="py-4 text-indigo-400 font-semibold">
                       {ticket.assignedTeam?.name || <span className="text-slate-550 italic">Direct Routing</span>}
                     </td>
-                    <td className="py-4 text-slate-450 text-xs">
+                    <td className="py-4 text-slate-455 text-xs">
                       <div className="flex items-center gap-1.5">
                         <Calendar className="h-3.5 w-3.5 text-slate-500" />
                         {formatDate(ticket.createdAt)}
@@ -317,34 +317,13 @@ const SupportMyTickets = () => {
                     </td>
                     <td className="py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
-                        {ticket.status === 'Closed' ? (
-                          <span className="text-xs text-slate-550 italic">No action</span>
-                        ) : ticket.status === 'Pending User Confirmation' ? (
-                          <span className="text-[10px] text-purple-400 italic">Awaiting User Confirmation</span>
-                        ) : (
-                          <>
-                            {(ticket.status === 'Assigned' || ticket.status === 'Open') && (
-                              <button
-                                onClick={() => handleMarkInProgress(ticket._id)}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition shadow active:scale-95"
-                                title="Mark Case In Progress"
-                              >
-                                <Play className="h-3 w-3" />
-                                Start
-                              </button>
-                            )}
-                            {ticket.status === 'In Progress' && (
-                              <button
-                                onClick={() => handleOpenResolutionModal(ticket)}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition shadow active:scale-95"
-                                title="Provide Resolution"
-                              >
-                                <CheckSquare className="h-3 w-3" />
-                                Provide Resolution
-                              </button>
-                            )}
-                          </>
-                        )}
+                        <button
+                          onClick={() => handleOpenResolutionModal(ticket)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition shadow active:scale-95"
+                          title="Show Details & Actions"
+                        >
+                          Show More
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -354,12 +333,13 @@ const SupportMyTickets = () => {
           </div>
         )}
       </div>
-
+ 
       {/* Provide Resolution Modal */}
       <ProvideResolutionModal
         isOpen={isResolutionModalOpen}
         ticket={selectedTicket}
         onConfirm={handleProvideResolution}
+        onStartWork={handleMarkInProgress}
         onCancel={() => {
           setIsResolutionModalOpen(false);
           setSelectedTicket(null);

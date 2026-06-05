@@ -15,6 +15,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     if (role === 'Corporate User') return <Navigate to="/corporate/dashboard" replace />;
     if (role === 'Support User') return <Navigate to="/support/tickets" replace />;
     if (role === 'Team Lead') return <Navigate to="/team-lead/dashboard" replace />;
+    if (role === 'Credential Admin') return <Navigate to="/credential-admin/dashboard" replace />;
     return <Navigate to="/login" replace />;
   }
 

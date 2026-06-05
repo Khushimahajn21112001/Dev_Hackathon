@@ -11,6 +11,19 @@ if (process.env.GEMINI_API_KEY) {
   genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 }
 
+const GEMINI_TIMEOUT_MS = 5000;
+
+/**
+ * Race a Gemini content generation call against a timeout
+ */
+async function generateContentWithTimeout(model, prompt, timeoutMs = GEMINI_TIMEOUT_MS) {
+  const geminiPromise = model.generateContent(prompt);
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Gemini timeout')), timeoutMs)
+  );
+  return Promise.race([geminiPromise, timeoutPromise]);
+}
+
 /**
  * Helper to clean JSON string from markdown formatting
  * @param {string} text - Raw text from Gemini
@@ -35,21 +48,21 @@ function cleanJsonString(text) {
  * @param {string[]} availableTeams - List of valid team names from the DB
  * @returns {Promise<Object>} The parsed structured JSON object
  */
-async function analyzeTicketIssue(issueText, availableTeams) {
+async function analyzeTicketIssue(issueText, availableTeams, selectedCategory) {
   if (!genAI) {
     throw new Error('GEMINI_API_KEY is not configured in .env');
   }
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
-  const systemPrompt = getTicketAnalysisPrompt(availableTeams);
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
+  const systemPrompt = getTicketAnalysisPrompt(availableTeams, selectedCategory);
 
   const prompt = `${systemPrompt}\n\nUSER ISSUE: "${issueText}"\n\nGenerate the JSON output:`;
 
   let result;
   try {
-    result = await model.generateContent(prompt);
+    result = await generateContentWithTimeout(model, prompt);
   } catch (genErr) {
-    console.error('Gemini generation error:', genErr);
+    console.error('Gemini generation error (timeout/failure):', genErr.message || genErr);
     // Fallback: indicate no match due to Gemini failure
     return null;
   }
@@ -79,7 +92,7 @@ async function summarizeResolutionForKB(data) {
     throw new Error('GEMINI_API_KEY is not configured in .env');
   }
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
   const systemPrompt = getResolutionSummaryPrompt();
 
   const prompt = `${systemPrompt}
@@ -96,7 +109,7 @@ ${data.resolutionSteps}
 
 Generate the clean JSON output for the Knowledge Base:`;
 
-  const result = await model.generateContent(prompt);
+  const result = await generateContentWithTimeout(model, prompt, 10000);
   const responseText = result.response.text();
 
   try {
@@ -114,19 +127,20 @@ Generate the clean JSON output for the Knowledge Base:`;
  */
 async function extractIssueMetadata(issueText) {
   if (!genAI) {
-    throw new Error('GEMINI_API_KEY is not configured in .env');
+    console.warn('GEMINI_API_KEY is not configured in .env. Skipping metadata extraction.');
+    return null;
   }
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
   const systemPrompt = getMetadataExtractionPrompt();
   const prompt = `${systemPrompt}\n\nUSER ISSUE: "${issueText}"\n\nGenerate the JSON output:`;
 
   try {
-    const result = await model.generateContent(prompt);
+    const result = await generateContentWithTimeout(model, prompt);
     const responseText = result.response.text();
     return JSON.parse(cleanJsonString(responseText));
   } catch (error) {
-    console.error('Failed to extract Gemini issue metadata:', error.message);
+    console.error('Failed to extract Gemini issue metadata (timeout/failure):', error.message || error);
     return null;
   }
 }

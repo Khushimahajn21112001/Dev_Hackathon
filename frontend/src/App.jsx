@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Login from './components/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminDashboard from './components/Dashboard/AdminDashboard';
+import AdminAccessRequests from './components/Dashboard/AdminAccessRequests';
 import SupportDashboard from './components/Dashboard/SupportDashboard';
 import ResolutionKBPage from './components/Dashboard/ResolutionKBPage';
 
@@ -11,6 +12,7 @@ import CorporateLayout from './components/Corporate/CorporateLayout';
 import RaiseRequest from './components/Corporate/RaiseRequest';
 import MyTickets from './components/Corporate/MyTickets';
 import CorporateNotifications from './components/Corporate/CorporateNotifications';
+import MyAccessRequests from './components/Corporate/MyAccessRequests';
 
 // Team Management & Custom Workspaces
 import TeamManagement from './components/Corporate/TeamManagement';
@@ -20,6 +22,9 @@ import TeamTickets from './components/Corporate/TeamTickets';
 import SupportLayout from './components/Corporate/SupportLayout';
 import SupportMyTickets from './components/Corporate/SupportMyTickets';
 import UserManagement from './components/Corporate/UserManagement';
+
+// Credential Admin
+import CredentialAdminDashboard from './components/CredentialAdmin/CredentialAdminDashboard';
 
 function App() {
   return (
@@ -41,6 +46,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['Admin']}>
               <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/access-requests"
+          element={
+            <ProtectedRoute allowedRoles={['Admin']}>
+              <AdminAccessRequests />
             </ProtectedRoute>
           }
         />
@@ -82,6 +95,7 @@ function App() {
           <Route path="raise-request" element={<RaiseRequest />} />
           <Route path="my-tickets" element={<MyTickets />} />
           <Route path="notifications" element={<CorporateNotifications />} />
+          <Route path="my-access-requests" element={<MyAccessRequests />} />
         </Route>
 
         {/* Team Lead - nested layout with sidebar */}
@@ -110,6 +124,16 @@ function App() {
           <Route path="notifications" element={<CorporateNotifications />} />
         </Route>
 
+        {/* Credential Admin Portal */}
+        <Route
+          path="/credential-admin/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['Credential Admin']}>
+              <CredentialAdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Support Legacy Dashboard Redirect */}
         <Route
           path="/support/dashboard"
@@ -124,3 +148,4 @@ function App() {
 }
 
 export default App;
+

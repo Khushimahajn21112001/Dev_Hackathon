@@ -7,7 +7,7 @@ const TeamSchema = new mongoose.Schema({
   description: { type: String },
   teamLead: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   status: { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
-  createdAt: { type: Date, default: Date.now }
-});
+  isSystemTeam: { type: Boolean, default: false } // Marks auto-bootstrapped system teams
+}, { timestamps: true });
 
 module.exports = mongoose.model('Team', TeamSchema);
