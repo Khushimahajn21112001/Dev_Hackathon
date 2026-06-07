@@ -58,8 +58,8 @@ const UserManagement = () => {
     setError('');
     try {
       const [usersRes, teamsRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/admin/users'),
-        axios.get('http://localhost:5000/api/tickets/teams')
+        axios.get(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/admin/users'),
+        axios.get(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/tickets/teams')
       ]);
       setUsers(usersRes.data.users || []);
       setTeams(teamsRes.data.teams || []);
@@ -82,7 +82,7 @@ const UserManagement = () => {
     try {
       setError('');
       setSuccess('');
-      const response = await axios.post('http://localhost:5000/api/admin/users', {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/admin/users', {
         username,
         password,
         name,
@@ -127,7 +127,7 @@ const UserManagement = () => {
     try {
       setError('');
       setSuccess('');
-      const response = await axios.put(`http://localhost:5000/api/admin/users/${editingUser._id}`, {
+      const response = await axios.put(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admin/users/${editingUser._id}`, {
         username: editUsername,
         password: editPassword || undefined,
         name: editName,
@@ -150,7 +150,7 @@ const UserManagement = () => {
 
   const handleToggleStatus = async (user) => {
     try {
-      const response = await axios.patch(`http://localhost:5000/api/admin/users/${user._id}/status`);
+      const response = await axios.patch(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admin/users/${user._id}/status`);
       fetchData();
     } catch (err) {
       console.error('Error toggling user status:', err);
@@ -163,7 +163,7 @@ const UserManagement = () => {
       return;
     }
     try {
-      const response = await axios.delete(`http://localhost:5000/api/admin/users/${userId}`);
+      const response = await axios.delete(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admin/users/${userId}`);
       if (response.data.message) {
         setSuccess('User deleted successfully!');
         fetchData();
@@ -497,6 +497,7 @@ const UserManagement = () => {
                   <option value="Team Lead">Team Lead</option>
                   <option value="Support User">Support User</option>
                   <option value="Corporate User">Corporate User</option>
+                  <option value="Credential Admin">Credential Admin</option>
                 </select>
               </div>
 
@@ -597,6 +598,7 @@ const UserManagement = () => {
                   <option value="Team Lead">Team Lead</option>
                   <option value="Support User">Support User</option>
                   <option value="Corporate User">Corporate User</option>
+                  <option value="Credential Admin">Credential Admin</option>
                 </select>
               </div>
 

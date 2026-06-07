@@ -149,6 +149,12 @@ router.post('/users', async (req, res) => {
     });
 
     await user.save();
+
+    // If user is a Team Lead and directly mapped to a team, sync it on the Team model
+    if (role === 'Team Lead' && team) {
+      await Team.findByIdAndUpdate(team, { teamLead: user._id });
+    }
+
     res.status(201).json({ message: 'User created successfully', user });
   } catch (error) {
     console.error('Error creating user:', error);
@@ -177,6 +183,9 @@ router.put('/users/:id', async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    const oldRole = user.role;
+    const oldTeam = user.team;
+
     if (username !== undefined) user.username = username;
     if (password !== undefined && password !== '') user.password = password;
     if (name !== undefined) user.name = name;
@@ -186,6 +195,26 @@ router.put('/users/:id', async (req, res) => {
     if (status !== undefined) user.status = status;
 
     await user.save();
+
+    // If the user's role changed from Team Lead, remove them from the old team's teamLead field
+    if (oldRole === 'Team Lead' && (role !== undefined && role !== 'Team Lead')) {
+      if (oldTeam) {
+        await Team.findByIdAndUpdate(oldTeam, { teamLead: null });
+      }
+    }
+
+    // If the user was a Team Lead and their team changed, remove them from the old team's teamLead field
+    if (oldRole === 'Team Lead' && oldTeam && team !== undefined && String(oldTeam) !== String(team)) {
+      await Team.findByIdAndUpdate(oldTeam, { teamLead: null });
+    }
+
+    // If the final role is Team Lead and there is an assigned team, sync the teamLead on that Team model
+    const finalRole = role !== undefined ? role : oldRole;
+    const finalTeam = team !== undefined ? team : oldTeam;
+    if (finalRole === 'Team Lead' && finalTeam) {
+      await Team.findByIdAndUpdate(finalTeam, { teamLead: user._id });
+    }
+
     res.json({ message: 'User updated successfully', user });
   } catch (error) {
     console.error('Error updating user:', error);

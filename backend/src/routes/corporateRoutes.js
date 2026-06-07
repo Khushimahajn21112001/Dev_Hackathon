@@ -425,9 +425,17 @@ router.post('/analyze-issue', async (req, res) => {
 router.post('/create-ticket', async (req, res) => {
   try {
     const { userId, ticketTitle, ticketDescription, originalUserInput, category, assignedTeamId, priority, extractedEntities, matchedKbId, kbSimilarityScore, userEditedTitle, userEditedDescription, userEditedCategory, userEditedTeam, userEditedPriority, additionalComments, aiPreviewEdited, reanalysisRequested, routingConfidence, routingReason } = req.body;
+    
+    console.log('[create-ticket] received:', { userId, ticketTitle: ticketTitle?.substring(0, 50), ticketDescription: ticketDescription?.substring(0, 50), category, priority });
+    
     if (!userId || !ticketTitle || !ticketDescription) {
+      console.log('[create-ticket] missing required fields:', { userId: !!userId, ticketTitle: !!ticketTitle, ticketDescription: !!ticketDescription });
       return res.status(400).json({ error: 'userId, ticketTitle, and ticketDescription are required.' });
     }
+
+    // Sanitize priority to valid enum values
+    const validPriorities = ['Low', 'Medium', 'High', 'Critical'];
+    const sanitizedPriority = validPriorities.includes(priority) ? priority : 'Medium';
 
     const ticket = await Ticket.create({
       ticketNumber:     'TICK-' + Date.now(),
@@ -451,9 +459,11 @@ router.post('/create-ticket', async (req, res) => {
       category:         category || 'General IT Support',
       assignedTeam:     assignedTeamId || null,
       assignedTo:       null,
-      priority:         priority || 'Medium',
+      priority:         sanitizedPriority,
       status:           'Open',
     });
+
+    console.log('[create-ticket] SUCCESS - ticketNumber:', ticket.ticketNumber);
 
     const User = require('../models/User');
     const corporateUser = await User.findById(userId);
@@ -462,8 +472,8 @@ router.post('/create-ticket', async (req, res) => {
 
     return res.status(201).json({ success: true, ticket });
   } catch (err) {
-    console.error('create-ticket error:', err);
-    return res.status(500).json({ error: 'Internal server error.' });
+    console.error('create-ticket error:', err.message, err.errors ? JSON.stringify(err.errors) : '');
+    return res.status(500).json({ error: 'Internal server error.', details: err.message });
   }
 });
 
@@ -872,14 +882,42 @@ router.post('/create-ticket-after-rag-failed', async (req, res) => {
       return res.status(400).json({ error: 'userId and issueText are required.' });
     }
 
+    let teamId = null;
+    if (recommendedTeamId) {
+      if (mongoose.Types.ObjectId.isValid(recommendedTeamId)) {
+        teamId = recommendedTeamId;
+      } else {
+        // Look up team by name (case-insensitive)
+        const team = await Team.findOne({ name: { $regex: new RegExp('^' + recommendedTeamId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } });
+        if (team) {
+          teamId = team._id;
+        } else {
+          // Smart fallback: try to find Desktop Support Team or first active team
+          const fallbackTeam = await Team.findOne({ name: /desktop support/i, status: 'Active' }) || await Team.findOne({ status: 'Active' });
+          if (fallbackTeam) teamId = fallbackTeam._id;
+        }
+      }
+    } else {
+      // Default fallback if no team recommended
+      const fallbackTeam = await Team.findOne({ name: /desktop support/i, status: 'Active' }) || await Team.findOne({ status: 'Active' });
+      if (fallbackTeam) teamId = fallbackTeam._id;
+    }
+
+    let computedTitle = ticketTitle;
+    if (!computedTitle || computedTitle === 'Issue reported via RAG') {
+      const cleaned = (issueText || '').trim().replace(/\s+/g, ' ');
+      const capitalized = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+      computedTitle = capitalized.length > 80 ? capitalized.substring(0, 77) + '...' : capitalized;
+    }
+
     const ticket = await Ticket.create({
       ticketNumber:             'TICK-' + Date.now(),
-      ticketTitle:              ticketTitle || 'Issue reported via RAG',
+      ticketTitle:              computedTitle || 'Issue reported via RAG',
       raisedBy:                 userId,
       issueDescription:         ticketDescription || issueText,
       originalUserInput:        issueText,
       category:                 category || 'General IT Support',
-      assignedTeam:             recommendedTeamId || null,
+      assignedTeam:             teamId,
       priority:                 'Medium',
       status:                   'Open',
       

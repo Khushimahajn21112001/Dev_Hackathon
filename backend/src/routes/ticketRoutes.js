@@ -9,7 +9,7 @@ const TicketLog = require('../models/TicketLog');
 // Get all support users
 router.get('/support-users', async (req, res) => {
   try {
-    const users = await User.find({ role: 'Support User' }, 'username');
+    const users = await User.find({ role: 'Support User' }, 'username name email team');
     res.json({ users });
   } catch (err) {
     console.error('Get support users error:', err);
@@ -26,9 +26,11 @@ router.get('/teams', async (req, res) => {
     const teamsWithMembers = await Promise.all(
       teams.map(async (team) => {
         const totalMembers = await User.countDocuments({ team: team._id, role: 'Support User' });
+        const members = await User.find({ team: team._id, role: 'Support User' }, 'username name email');
         return {
           ...team.toObject(),
           totalMembers,
+          members,
         };
       })
     );
@@ -53,7 +55,7 @@ router.get('/team-leads', async (req, res) => {
 
 // Create team
 router.post('/teams', async (req, res) => {
-  const { name, description, teamLead } = req.body;
+  const { name, description, teamLead, members } = req.body;
   if (!name) {
     return res.status(400).json({ message: 'Team name is required' });
   }
@@ -70,8 +72,14 @@ router.post('/teams', async (req, res) => {
       await User.findByIdAndUpdate(teamLead, { team: team._id });
     }
 
+    if (members && Array.isArray(members)) {
+      await User.updateMany({ _id: { $in: members } }, { team: team._id });
+    }
+
     const populatedTeam = await Team.findById(team._id).populate('teamLead', 'username name email');
-    res.json({ success: true, team: { ...populatedTeam.toObject(), totalMembers: 0 } });
+    const totalMembers = members && Array.isArray(members) ? members.length : 0;
+    const teamMembers = members && Array.isArray(members) ? await User.find({ team: team._id, role: 'Support User' }, 'username name email') : [];
+    res.json({ success: true, team: { ...populatedTeam.toObject(), totalMembers, members: teamMembers } });
   } catch (err) {
     console.error('Create team error:', err);
     if (err.code === 11000) {
@@ -84,7 +92,7 @@ router.post('/teams', async (req, res) => {
 // Update team
 router.put('/teams/:id', async (req, res) => {
   const { id } = req.params;
-  const { name, description, teamLead, status } = req.body;
+  const { name, description, teamLead, status, members } = req.body;
   try {
     const updateData = {};
     if (name !== undefined) {
@@ -106,8 +114,16 @@ router.put('/teams/:id', async (req, res) => {
       await User.findByIdAndUpdate(teamLead, { team: team._id });
     }
 
+    if (members && Array.isArray(members)) {
+      // Remove members who are not in the new list
+      await User.updateMany({ team: team._id, role: 'Support User', _id: { $nin: members } }, { team: null });
+      // Add the new members
+      await User.updateMany({ _id: { $in: members } }, { team: team._id });
+    }
+
     const totalMembers = await User.countDocuments({ team: team._id, role: 'Support User' });
-    res.json({ success: true, team: { ...team.toObject(), totalMembers } });
+    const teamMembers = await User.find({ team: team._id, role: 'Support User' }, 'username name email');
+    res.json({ success: true, team: { ...team.toObject(), totalMembers, members: teamMembers } });
   } catch (err) {
     console.error('Update team error:', err);
     res.status(500).json({ message: 'Server error' });
@@ -234,14 +250,45 @@ router.patch('/pick/:id', async (req, res) => {
   const { supportUserId } = req.body;
   if (!supportUserId) return res.status(400).json({ message: 'supportUserId required' });
   try {
+    const ticketBefore = await Ticket.findById(ticketId);
+    if (!ticketBefore) {
+      return res.status(404).json({ message: 'Ticket not found' });
+    }
+    const oldStatus = ticketBefore.status;
+
     const ticket = await Ticket.findByIdAndUpdate(
       ticketId,
-      { status: 'Assigned', assignedTo: supportUserId },
+      { status: 'In Progress', assignedTo: supportUserId, assignedAt: Date.now(), updatedAt: Date.now() },
       { new: true }
     )
       .populate('raisedBy', 'username')
       .populate('assignedTeam', 'name')
       .populate('assignedTo', 'username');
+
+    if (ticket) {
+      const Notification = require('../models/Notification');
+      const User = require('../models/User');
+      const supportUserObj = await User.findById(supportUserId);
+      const supportName = supportUserObj ? (supportUserObj.name || supportUserObj.username) : 'Support User';
+
+      const msg = `Your ticket #${ticket.ticketNumber} is now in progress and has been picked up by ${supportName}.`;
+      await Notification.create({
+        userId: ticket.raisedBy._id,
+        message: msg,
+        ticketId: ticket._id,
+      });
+
+      // Also log the action in TicketLog
+      await TicketLog.create({
+        ticketId: ticket._id,
+        action: 'Support user picked up ticket',
+        oldStatus,
+        newStatus: 'In Progress',
+        performedBy: supportUserId,
+        remarks: 'Self-assignment'
+      });
+    }
+
     res.json({ ticket });
   } catch (err) {
     console.error('Pick ticket error:', err);
@@ -254,6 +301,12 @@ router.patch('/assign/:id', async (req, res) => {
   const ticketId = req.params.id;
   const { assignedTeamId, assignedToId } = req.body;
   try {
+    const ticketBefore = await Ticket.findById(ticketId);
+    if (!ticketBefore) {
+      return res.status(404).json({ message: 'Ticket not found' });
+    }
+    const oldStatus = ticketBefore.status;
+
     const updateData = {};
     if (assignedTeamId !== undefined) {
       updateData.assignedTeam = assignedTeamId || null;
@@ -261,7 +314,7 @@ router.patch('/assign/:id', async (req, res) => {
     if (assignedToId !== undefined) {
       updateData.assignedTo = assignedToId || null;
       if (assignedToId) {
-        updateData.status = 'Assigned';
+        updateData.status = 'In Progress';
       } else {
         updateData.status = 'Open';
       }
@@ -278,7 +331,7 @@ router.patch('/assign/:id', async (req, res) => {
       const Notification = require('../models/Notification');
       let msg = `Your ticket #${ticket.ticketNumber} has been updated.`;
       if (assignedToId) {
-        msg = `Your ticket #${ticket.ticketNumber} has been assigned to ${ticket.assignedTo.name || ticket.assignedTo.username}.`;
+        msg = `Your ticket #${ticket.ticketNumber} has been assigned to ${ticket.assignedTo.name || ticket.assignedTo.username} and is now In Progress.`;
       }
       await Notification.create({
         userId: ticket.raisedBy._id,
@@ -293,6 +346,15 @@ router.patch('/assign/:id', async (req, res) => {
           ticketId: ticket._id,
         });
       }
+
+      // Also log the action in TicketLog
+      await TicketLog.create({
+        ticketId: ticket._id,
+        action: assignedToId ? 'Ticket assigned to agent' : 'Ticket assignment updated',
+        oldStatus,
+        newStatus: ticket.status,
+        performedBy: assignedToId || null,
+      });
     }
 
     res.json({ ticket });

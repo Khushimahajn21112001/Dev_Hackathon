@@ -5,11 +5,13 @@ const User = require('../models/User');
 
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
+  console.log(`Login attempt - Username: "${username}", Password: "${password}"`);
   if (!username || !password) {
     return res.status(400).json({ message: 'Username and password required' });
   }
   try {
     const user = await User.findOne({ username, password }); // plain‑text check as requested
+    console.log('User found in DB:', user ? `Yes (${user.username}, Role: ${user.role})` : 'No');
     if (!user) {
       return res.status(401).json({ message: 'Invalid username or password' });
     }

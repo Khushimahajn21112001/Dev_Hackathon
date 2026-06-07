@@ -37,6 +37,10 @@ const TeamManagement = () => {
   const [editStatus, setEditStatus] = useState('Active');
   const [showEditModal, setShowEditModal] = useState(false);
 
+  const [supportUsers, setSupportUsers] = useState([]);
+  const [selectedMembers, setSelectedMembers] = useState([]);
+  const [editSelectedMembers, setEditSelectedMembers] = useState([]);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -45,12 +49,14 @@ const TeamManagement = () => {
     setLoading(true);
     setError('');
     try {
-      const [teamsRes, leadsRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/tickets/teams'),
-        axios.get('http://localhost:5000/api/tickets/team-leads')
+      const [teamsRes, leadsRes, supportRes] = await Promise.all([
+        axios.get(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/tickets/teams'),
+        axios.get(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/tickets/team-leads'),
+        axios.get(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/tickets/support-users')
       ]);
       setTeams(teamsRes.data.teams || []);
       setTeamLeads(leadsRes.data.leads || []);
+      setSupportUsers(supportRes.data.users || []);
     } catch (err) {
       console.error('Error fetching team data:', err);
       setError('Failed to fetch teams and team leads.');
@@ -66,10 +72,11 @@ const TeamManagement = () => {
     try {
       setError('');
       setSuccess('');
-      const response = await axios.post('http://localhost:5000/api/tickets/teams', {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/tickets/teams', {
         name,
         description,
-        teamLead: teamLead || null
+        teamLead: teamLead || null,
+        members: selectedMembers
       });
 
       if (response.data.success) {
@@ -77,6 +84,7 @@ const TeamManagement = () => {
         setName('');
         setDescription('');
         setTeamLead('');
+        setSelectedMembers([]);
         setShowCreateModal(false);
         fetchData();
         setTimeout(() => setSuccess(''), 3000);
@@ -93,6 +101,7 @@ const TeamManagement = () => {
     setEditDescription(team.description || '');
     setEditTeamLead(team.teamLead?._id || '');
     setEditStatus(team.status || 'Active');
+    setEditSelectedMembers(team.members ? team.members.map(m => m._id) : []);
     setShowEditModal(true);
   };
 
@@ -103,11 +112,12 @@ const TeamManagement = () => {
     try {
       setError('');
       setSuccess('');
-      const response = await axios.put(`http://localhost:5000/api/tickets/teams/${editingTeam._id}`, {
+      const response = await axios.put(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/tickets/teams/${editingTeam._id}`, {
         name: editName,
         description: editDescription,
         teamLead: editTeamLead || null,
-        status: editStatus
+        status: editStatus,
+        members: editSelectedMembers
       });
 
       if (response.data.success) {
@@ -126,7 +136,7 @@ const TeamManagement = () => {
   const handleToggleStatus = async (team) => {
     const newStatus = team.status === 'Active' ? 'Inactive' : 'Active';
     try {
-      const response = await axios.patch(`http://localhost:5000/api/tickets/teams/${team._id}/status`, {
+      const response = await axios.patch(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/tickets/teams/${team._id}/status`, {
         status: newStatus
       });
       if (response.data.success) {
@@ -143,7 +153,7 @@ const TeamManagement = () => {
       return;
     }
     try {
-      const response = await axios.delete(`http://localhost:5000/api/tickets/teams/${teamId}`);
+      const response = await axios.delete(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/tickets/teams/${teamId}`);
       if (response.data.success) {
         setSuccess('Division deleted successfully!');
         fetchData();
@@ -378,6 +388,53 @@ const TeamManagement = () => {
                 </select>
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Team Members (Support Users)</label>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val && !selectedMembers.includes(val)) {
+                      setSelectedMembers([...selectedMembers, val]);
+                    }
+                  }}
+                  className="block w-full px-3 py-2.5 border border-slate-800 rounded-xl bg-slate-950 text-slate-350 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                >
+                  <option value="">-- Add Support User --</option>
+                  {supportUsers
+                    .filter(user => !selectedMembers.includes(user._id) && !user.team)
+                    .map(user => (
+                      <option key={user._id} value={user._id}>
+                        {user.username} {user.name ? `(${user.name})` : ''}
+                      </option>
+                    ))
+                  }
+                </select>
+
+                {selectedMembers.length > 0 && (
+                  <div className="mt-3 bg-slate-950 border border-slate-850 rounded-xl p-3 max-h-36 overflow-y-auto space-y-2">
+                    {selectedMembers.map(memberId => {
+                      const memberObj = supportUsers.find(u => u._id === memberId);
+                      if (!memberObj) return null;
+                      return (
+                        <div key={memberId} className="flex items-center justify-between bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg text-xs">
+                          <span className="font-semibold text-slate-200">
+                            {memberObj.username} {memberObj.name ? `(${memberObj.name})` : ''}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedMembers(selectedMembers.filter(id => id !== memberId))}
+                            className="text-red-400 hover:text-red-300 font-bold transition px-2 py-0.5 hover:bg-red-500/10 rounded-md"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-850">
                 <button
                   type="button"
@@ -451,6 +508,53 @@ const TeamManagement = () => {
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Team Members (Support Users)</label>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val && !editSelectedMembers.includes(val)) {
+                      setEditSelectedMembers([...editSelectedMembers, val]);
+                    }
+                  }}
+                  className="block w-full px-3 py-2.5 border border-slate-800 rounded-xl bg-slate-950 text-slate-350 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                >
+                  <option value="">-- Add Support User --</option>
+                  {supportUsers
+                    .filter(user => !editSelectedMembers.includes(user._id) && (!user.team || user.team === editingTeam?._id))
+                    .map(user => (
+                      <option key={user._id} value={user._id}>
+                        {user.username} {user.name ? `(${user.name})` : ''}
+                      </option>
+                    ))
+                  }
+                </select>
+
+                {editSelectedMembers.length > 0 && (
+                  <div className="mt-3 bg-slate-950 border border-slate-850 rounded-xl p-3 max-h-36 overflow-y-auto space-y-2">
+                    {editSelectedMembers.map(memberId => {
+                      const memberObj = supportUsers.find(u => u._id === memberId);
+                      if (!memberObj) return null;
+                      return (
+                        <div key={memberId} className="flex items-center justify-between bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg text-xs">
+                          <span className="font-semibold text-slate-200">
+                            {memberObj.username} {memberObj.name ? `(${memberObj.name})` : ''}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setEditSelectedMembers(editSelectedMembers.filter(id => id !== memberId))}
+                            className="text-red-400 hover:text-red-300 font-bold transition px-2 py-0.5 hover:bg-red-500/10 rounded-md"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-850">

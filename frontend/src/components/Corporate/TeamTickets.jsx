@@ -37,7 +37,7 @@ const TeamTickets = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await axios.get(`http://localhost:5000/api/team-lead/tickets?userId=${userId}`);
+      const response = await axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/team-lead/tickets?userId=${userId}`);
       setTickets(response.data.tickets || []);
       setTeamMembers(response.data.teamMembers || []);
       setTeam(response.data.team || null);
@@ -65,7 +65,7 @@ const TeamTickets = () => {
       setError('');
       setSuccess('');
       const response = await axios.patch(
-        `http://localhost:5000/api/team-lead/tickets/${selectedTicket._id}/assign`,
+        `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/team-lead/tickets/${selectedTicket._id}/assign`,
         { assignedToId: agentId }
       );
 

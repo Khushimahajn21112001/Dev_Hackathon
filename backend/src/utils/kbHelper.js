@@ -5,6 +5,7 @@
 const ResolutionKB = require('../models/ResolutionKB');
 const { generateEmbedding, extractEntities } = require('./aiMatching');
 const { summarizeResolutionForKB } = require('../services/geminiService');
+const { extractKbMetadata } = require('../services/ragService');
 
 /**
  * Upsert a ResolutionKB entry from a closed ticket.
@@ -17,6 +18,62 @@ async function upsertResolutionKB(ticket) {
   // Guard: only save if rootCause and resolutionSteps are present
   if (!ticket.rootCause || !ticket.resolutionSteps) {
     return null;
+  }
+
+  // Extract KB metadata via Gemini (to power hybrid RAG matching)
+  let metadata = null;
+  try {
+    metadata = await extractKbMetadata(
+      ticket.ticketTitle,
+      ticket.rootCause,
+      ticket.resolutionSteps,
+      ticket.category,
+      ticket.assignedTeam?.name
+    );
+  } catch (err) {
+    console.warn('[kbHelper] Metadata extraction failed:', err.message);
+  }
+
+  // Robust offline metadata extractor fallback if Gemini fails
+  if (!metadata) {
+    console.log('[kbHelper] Gemini metadata extraction failed/timed out. Using offline fallback.');
+    const fullText = `${ticket.ticketTitle} ${ticket.rootCause || ''} ${typeof ticket.resolutionSteps === 'string' ? ticket.resolutionSteps : (ticket.resolutionSteps || []).join(' ')}`.toLowerCase();
+    
+    // IP extraction
+    const ipRegex = /\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b/g;
+    const extractedIps = fullText.match(ipRegex) || [];
+    
+    // Application names
+    const KNOWN_APPS = [
+      'powerbi', 'power bi', 'vpn', 'outlook', 'excel', 'word', 'teams',
+      'wifi', 'internet', 'printer', 'jira', 'confluence', 'bitbucket',
+      'chrome', 'arcon', 'arcon authenticator', 'authenticator'
+    ];
+    const extractedApps = [];
+    for (const app of KNOWN_APPS) {
+      if (fullText.includes(app)) {
+        let name = app;
+        if (app === 'powerbi' || app === 'power bi') name = 'Power BI';
+        if (app === 'vpn') name = 'VPN';
+        if (app === 'chrome') name = 'Chrome';
+        if (app === 'jira') name = 'Jira';
+        if (app === 'outlook') name = 'Outlook';
+        if (app === 'teams') name = 'Teams';
+        if (app.includes('arcon')) name = 'Arcon Authenticator';
+        if (app === 'authenticator' && !extractedApps.includes('Arcon Authenticator')) name = 'Arcon Authenticator';
+        if (!extractedApps.includes(name)) extractedApps.push(name);
+      }
+    }
+    
+    metadata = {
+      applicationNames: extractedApps,
+      ipAddresses: extractedIps,
+      urls: [],
+      deviceIds: [],
+      errorMessages: [],
+      problemFamily: '',
+      category: ticket.category || 'General IT Support'
+    };
   }
 
   let cleanData;
@@ -43,14 +100,15 @@ async function upsertResolutionKB(ticket) {
     };
   }
 
-  // Build a rich searchable text for the embedding based on the CLEANED data
+  // Build a rich searchable text for the embedding based on the CLEANED data and problem family
   const embedText = [
     cleanData.issueTitle,
     cleanData.category || '',
     cleanData.rootCauseSummary,
     cleanData.cleanResolutionSteps.join(' '),
     (cleanData.keywords || []).join(' '),
-    ticket.originalUserInput || ''
+    ticket.originalUserInput || '',
+    metadata?.problemFamily || ''
   ].join(' ');
 
   // Generate embedding vector so AI semantic search can find this KB entry
@@ -97,6 +155,19 @@ async function upsertResolutionKB(ticket) {
       existing.successRate = Math.round((existing.successCount / existing.solvedCount) * 100);
     }
 
+    // Merge AI extracted fields
+    if (metadata) {
+      existing.applicationNames = Array.from(new Set([...(existing.applicationNames || []), ...(metadata.applicationNames || [])]));
+      existing.errorMessages = Array.from(new Set([...(existing.errorMessages || []), ...(metadata.errorMessages || [])]));
+      existing.rootCauseCategory = metadata.rootCauseCategory || existing.rootCauseCategory;
+      existing.problemFamily = metadata.problemFamily || existing.problemFamily;
+      existing.policyTool = metadata.policyTool || existing.policyTool;
+      existing.affectedLayer = metadata.affectedLayer || existing.affectedLayer;
+      existing.symptoms = Array.from(new Set([...(existing.symptoms || []), ...(metadata.symptoms || [])]));
+      existing.resolutionType = metadata.resolutionType || existing.resolutionType;
+      existing.tags = Array.from(new Set([...(existing.tags || []), ...(metadata.tags || [])]));
+    }
+
     await existing.save();
     return existing;
   } else {
@@ -106,7 +177,7 @@ async function upsertResolutionKB(ticket) {
       category:            cleanData.category || ticket.category || 'General IT Support',
       keywords:            cleanData.keywords || [],
       knownFixSteps:       cleanData.cleanResolutionSteps,
-      rootCause:           cleanData.rootCauseSummary,
+      rootCause:           cleanData.rootCauseSummary || ticket.rootCause,
       assignedTeam:        ticket.assignedTeam || null,
       embedding,       
       entities,
@@ -116,6 +187,17 @@ async function upsertResolutionKB(ticket) {
       successRate:         0,
       createdFromTicketId: ticket._id,
       lastUpdatedAt:       new Date(),
+
+      // AI Extracted fields
+      applicationNames:     metadata?.applicationNames || [],
+      errorMessages:        metadata?.errorMessages || [],
+      rootCauseCategory:    metadata?.rootCauseCategory || '',
+      problemFamily:        metadata?.problemFamily || '',
+      policyTool:           metadata?.policyTool || '',
+      affectedLayer:        metadata?.affectedLayer || '',
+      symptoms:             metadata?.symptoms || [],
+      resolutionType:       metadata?.resolutionType || '',
+      tags:                 metadata?.tags || []
     });
     return newKb;
   }

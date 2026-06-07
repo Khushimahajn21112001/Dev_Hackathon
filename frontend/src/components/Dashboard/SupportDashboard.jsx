@@ -19,7 +19,7 @@ const SupportDashboard = () => {
     // Actually, we can get list of all tickets and read teams off them, or just list all tickets. Let's fetch all tickets for the dashboard!
     try {
       // Let's get all tickets first
-      const response = await axios.get('http://localhost:5000/api/tickets', {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/tickets', {
         params: { role: 'Admin' }, // support user can view all to choose team
       });
       const t = response.data.tickets;
@@ -47,7 +47,7 @@ const SupportDashboard = () => {
     const role = localStorage.getItem('role');
     const userId = localStorage.getItem('userId');
     try {
-      const response = await axios.get('http://localhost:5000/api/tickets', {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/tickets', {
         params: { role, userId, teamId: selectedTeamId },
       });
       setTickets(response.data.tickets);

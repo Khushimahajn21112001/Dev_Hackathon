@@ -18,6 +18,12 @@ app.use('/api/chats', require('./routes/chatRoutes'));
 app.use('/api/corporate', require('./routes/corporateRoutes'));
 app.use('/api/team-lead', require('./routes/teamLeadRoutes'));
 app.use('/api/support', require('./routes/supportRoutes'));
+app.use('/api/access-requests', require('./routes/accessRequestRoutes'));
+
+// Health check route
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', message: 'Backend running' });
+});
 
 // Debug endpoints
 app.get('/api/debug/test-gemini', async (req, res) => {
@@ -33,7 +39,7 @@ app.get('/api/debug/test-gemini', async (req, res) => {
     const { GoogleGenerativeAI } = require('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(apiKey);
     // Use the model configured in our codebase
-    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
     const result = await model.generateContent('Say "Gemini connection is working!" in one short sentence.');
     const text = result.response.text();
     return res.json({
@@ -55,10 +61,19 @@ app.get('/api/debug/test-gemini', async (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-connectDB().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+// Export the app for Vercel serverless environments
+module.exports = app;
+
+// Only listen on a port if not running in a Vercel serverless environment
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  connectDB().then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }).catch(err => {
+    console.error('Failed to start server due to DB error', err);
   });
-}).catch(err => {
-  console.error('Failed to start server due to DB error', err);
-});
+} else {
+  // For Vercel, just connect to the DB (it will connect on each cold start)
+  connectDB().catch(console.error);
+}

@@ -12,7 +12,7 @@ const ChatBox = ({ ticketId, recipientId }) => {
 
   const fetchChats = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/chats/${ticketId}`);
+      const response = await axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/chats/${ticketId}`);
       setMessages(response.data.chats);
     } catch (err) {
       console.error('Error fetching chats', err);
@@ -39,7 +39,7 @@ const ChatBox = ({ ticketId, recipientId }) => {
     setNewMessage('');
 
     try {
-      await axios.post('http://localhost:5000/api/chats/send', {
+      await axios.post(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/chats/send', {
         ticketId,
         senderId: userId,
         receiverId: recipientId,

@@ -35,7 +35,7 @@ const SupportMyTickets = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await axios.get(`http://localhost:5000/api/support/tickets?userId=${userId}`);
+      const response = await axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/support/tickets?userId=${userId}`);
       setTickets(response.data.tickets || []);
     } catch (err) {
       console.error('Error fetching support tickets:', err);
@@ -54,13 +54,17 @@ const SupportMyTickets = () => {
       setError('');
       setSuccess('');
       const response = await axios.patch(
-        `http://localhost:5000/api/support/tickets/${ticketId}/start`,
+        `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/support/tickets/${ticketId}/start`,
         { supportUserId: userId }
       );
 
       if (response.data.success) {
         setSuccess('Case is now marked In Progress. Resolve ASAP!');
+        const updatedTicket = response.data.ticket;
         fetchTickets();
+        if (selectedTicket && selectedTicket._id === ticketId) {
+          setSelectedTicket(updatedTicket);
+        }
         setTimeout(() => setSuccess(''), 3000);
       }
     } catch (err) {
@@ -81,7 +85,7 @@ const SupportMyTickets = () => {
       setError('');
       setSuccess('');
       const response = await axios.patch(
-        `http://localhost:5000/api/support/tickets/${selectedTicket._id}/provide-resolution`,
+        `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/support/tickets/${selectedTicket._id}/provide-resolution`,
         { rootCause, resolutionSteps, internalNote, reusableFix, supportUserId: userId }
       );
 
@@ -137,19 +141,21 @@ const SupportMyTickets = () => {
   return (
     <div className="p-6 md:p-8 space-y-8 font-sans animate-fade-in text-slate-100 bg-slate-950 min-h-full">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/60 pb-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl flex items-center gap-2">
-            <FileText className="h-7 w-7 text-indigo-400" />
+          <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl flex items-center gap-3">
+            <div className="p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/20">
+              <FileText className="h-6 w-6 text-indigo-400" />
+            </div>
             <span>Agent Resolution Desk</span>
           </h1>
-          <p className="text-sm text-slate-400 mt-1.5">
-            Manage your personal workload, progress incidents, and sync closed tickets to the corporate knowledge base.
+          <p className="text-sm text-slate-400 mt-2 ml-[52px]">
+            Manage your personal workload, progress incidents, and sync closed tickets to the knowledge base.
           </p>
         </div>
         <button
           onClick={fetchTickets}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-850 text-slate-400 hover:text-slate-200 rounded-xl transition duration-150"
+          className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 border border-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-xl transition-all duration-200 btn-press"
         >
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           <span className="text-xs font-semibold">Sync Registry</span>
@@ -157,14 +163,14 @@ const SupportMyTickets = () => {
       </div>
 
       {/* Telemetry Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-5">
         {[
           { name: 'Total Cases Assigned', value: stats.total, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
           { name: 'Assigned (New)', value: stats.assigned, color: 'text-blue-400', bg: 'bg-blue-500/10' },
           { name: 'In Progress', value: stats.inProgress, color: 'text-amber-400', bg: 'bg-amber-500/10' },
           { name: 'Resolved / Closed', value: stats.closed, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
         ].map((stat, idx) => (
-          <div key={idx} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-md flex items-center gap-4">
+          <div key={idx} className="bg-slate-900/80 border border-slate-800/60 rounded-2xl p-5 shadow-md flex items-center gap-4 card-hover">
             <div className={`p-3 rounded-xl ${stat.bg}`}>
               <FileText className={`h-6 w-6 ${stat.color}`} />
             </div>
@@ -191,10 +197,10 @@ const SupportMyTickets = () => {
       )}
 
       {/* Filter panel */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div className="flex items-center gap-2 text-sm font-bold text-slate-350 uppercase tracking-wider">
-            <Filter className="h-4.5 w-4.5 text-indigo-400" />
+      <div className="bg-slate-900/80 border border-slate-800/60 rounded-2xl p-5 shadow-lg space-y-4 backdrop-blur-sm">
+        <div className="flex items-center justify-between border-b border-slate-800/60 pb-3">
+          <div className="flex items-center gap-2 text-sm font-bold text-slate-300 uppercase tracking-wider">
+            <Filter className="h-4 w-4 text-indigo-400" />
             Registry Filtering Panel
           </div>
           {(searchQuery || statusFilter) && (
@@ -203,7 +209,7 @@ const SupportMyTickets = () => {
                 setSearchQuery('');
                 setStatusFilter('');
               }}
-              className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 font-semibold"
+              className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-semibold transition-colors duration-200"
             >
               <X className="h-3.5 w-3.5" />
               Clear Filters
@@ -219,7 +225,7 @@ const SupportMyTickets = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by case #, title or description..."
-              className="w-full bg-slate-950 text-slate-350 border border-slate-850 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:border-indigo-500 focus:outline-none transition"
+              className="w-full bg-slate-950/60 text-slate-300 border border-slate-700/50 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 focus:outline-none transition-all duration-200 placeholder-slate-500"
             />
           </div>
 
@@ -227,7 +233,7 @@ const SupportMyTickets = () => {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full bg-slate-950 text-slate-350 border border-slate-850 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none cursor-pointer"
+              className="w-full bg-slate-950/60 text-slate-300 border border-slate-700/50 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 focus:outline-none cursor-pointer transition-all duration-200"
             >
               <option value="">All Case Statuses</option>
               <option value="Assigned">Assigned / Open</option>
@@ -239,7 +245,7 @@ const SupportMyTickets = () => {
       </div>
 
       {/* Roster Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg space-y-4">
+      <div className="bg-slate-900/80 border border-slate-800/60 rounded-2xl p-6 shadow-lg space-y-4 backdrop-blur-sm">
         <div>
           <h3 className="text-base font-bold text-white">Active Case Queue Registry ({filteredTickets.length} cases)</h3>
           <p className="text-xs text-slate-400 mt-1">Review parameters and initiate progress or submit resolution learning.</p>
@@ -262,7 +268,6 @@ const SupportMyTickets = () => {
                 <tr className="text-slate-400 font-semibold pb-3 text-left">
                   <th className="pb-3 font-semibold">Incident #</th>
                   <th className="pb-3 font-semibold">Incident Title</th>
-                  <th className="pb-3 font-semibold">Description</th>
                   <th className="pb-3 font-semibold">Category</th>
                   <th className="pb-3 font-semibold text-center">Priority</th>
                   <th className="pb-3 font-semibold text-center">Status</th>
@@ -275,10 +280,7 @@ const SupportMyTickets = () => {
                 {filteredTickets.map((ticket) => (
                   <tr key={ticket._id} className="hover:bg-slate-850/20 transition-colors">
                     <td className="py-4 font-mono font-bold text-slate-450 text-xs">{ticket.ticketNumber}</td>
-                    <td className="py-4 pr-4 font-bold text-white max-w-[150px] truncate">{ticket.ticketTitle}</td>
-                    <td className="py-4 text-xs text-slate-450 max-w-[200px] truncate" title={ticket.issueDescription}>
-                      {ticket.issueDescription}
-                    </td>
+                    <td className="py-4 pr-4 font-bold text-white max-w-[220px] truncate" title={ticket.ticketTitle}>{ticket.ticketTitle}</td>
                     <td className="py-4 text-slate-400">{ticket.category}</td>
                     <td className="py-4 text-center">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
@@ -307,7 +309,7 @@ const SupportMyTickets = () => {
                     <td className="py-4 text-indigo-400 font-semibold">
                       {ticket.assignedTeam?.name || <span className="text-slate-550 italic">Direct Routing</span>}
                     </td>
-                    <td className="py-4 text-slate-450 text-xs">
+                    <td className="py-4 text-slate-455 text-xs">
                       <div className="flex items-center gap-1.5">
                         <Calendar className="h-3.5 w-3.5 text-slate-500" />
                         {formatDate(ticket.createdAt)}
@@ -315,34 +317,13 @@ const SupportMyTickets = () => {
                     </td>
                     <td className="py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
-                        {ticket.status === 'Closed' ? (
-                          <span className="text-xs text-slate-550 italic">No action</span>
-                        ) : ticket.status === 'Pending User Confirmation' ? (
-                          <span className="text-[10px] text-purple-400 italic">Awaiting User Confirmation</span>
-                        ) : (
-                          <>
-                            {(ticket.status === 'Assigned' || ticket.status === 'Open') && (
-                              <button
-                                onClick={() => handleMarkInProgress(ticket._id)}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition shadow active:scale-95"
-                                title="Mark Case In Progress"
-                              >
-                                <Play className="h-3 w-3" />
-                                Start
-                              </button>
-                            )}
-                            {ticket.status === 'In Progress' && (
-                              <button
-                                onClick={() => handleOpenResolutionModal(ticket)}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition shadow active:scale-95"
-                                title="Provide Resolution"
-                              >
-                                <CheckSquare className="h-3 w-3" />
-                                Provide Resolution
-                              </button>
-                            )}
-                          </>
-                        )}
+                        <button
+                          onClick={() => handleOpenResolutionModal(ticket)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition shadow active:scale-95"
+                          title="Show Details & Actions"
+                        >
+                          Show More
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -352,12 +333,13 @@ const SupportMyTickets = () => {
           </div>
         )}
       </div>
-
+ 
       {/* Provide Resolution Modal */}
       <ProvideResolutionModal
         isOpen={isResolutionModalOpen}
         ticket={selectedTicket}
         onConfirm={handleProvideResolution}
+        onStartWork={handleMarkInProgress}
         onCancel={() => {
           setIsResolutionModalOpen(false);
           setSelectedTicket(null);

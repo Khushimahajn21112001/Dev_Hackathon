@@ -5,6 +5,12 @@ const ResolutionKB = require('../models/ResolutionKB');
 const { getRagPrompt } = require('../prompts/ragPrompt');
 const { extractIssueMetadata } = require('./geminiService');
 
+const KNOWN_APPS = [
+  'powerbi', 'power bi', 'vpn', 'outlook', 'excel', 'word', 'teams',
+  'wifi', 'internet', 'printer', 'jira', 'confluence', 'bitbucket',
+  'chrome', 'arcon', 'arcon authenticator', 'authenticator'
+];
+
 let genAI = null;
 if (process.env.GEMINI_API_KEY) {
   genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -56,7 +62,7 @@ function deduplicateSteps(steps, maxSteps = 4) {
 async function extractKbMetadata(issueTitle, rootCause, resolutionSteps, category, assignedTeamName) {
   if (!genAI) return null;
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
     const prompt = `You are an IT Support AI. Extract structured metadata from a closed ticket to power a Knowledge Base RAG system.
       
 Original Issue: ${issueTitle}
@@ -77,7 +83,11 @@ Respond strictly in JSON format matching this schema:
   "resolutionType": "e.g. Policy Whitelist / Access Restore",
   "tags": ["tag1", "tag2", "tag3"]
 }`;
-    const result = await model.generateContent(prompt);
+    const geminiPromise = model.generateContent(prompt);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Gemini timeout')), 10000)
+    );
+    const result = await Promise.race([geminiPromise, timeoutPromise]);
     const responseText = result.response.text();
     return JSON.parse(cleanJsonString(responseText));
   } catch (error) {
@@ -89,14 +99,14 @@ Respond strictly in JSON format matching this schema:
 // ─────────────────────────────────────────────────────────────────────────────
 // Retrieve Relevant Resolutions – Xenova + keyword hybrid (NO Gemini)
 // ─────────────────────────────────────────────────────────────────────────────
-const RAG_MATCH_THRESHOLD = 0.60;  // Only send to Gemini if score >= this
+const RAG_MATCH_THRESHOLD = 0.50;  // Only send to Gemini if score >= this
 const MAX_KB_CANDIDATES = 3;       // Limit context sent to Gemini
 
 async function retrieveRelevantResolutions(issueText) {
   const t0 = Date.now();
   
   // Run embedding and metadata extraction concurrently
-  const [userEmbedding, userMetadata] = await Promise.all([
+  let [userEmbedding, userMetadata] = await Promise.all([
     generateEmbedding(issueText),
     extractIssueMetadata(issueText)
   ]);
@@ -104,6 +114,40 @@ async function retrieveRelevantResolutions(issueText) {
 
   if (!userEmbedding || userEmbedding.length === 0) {
     return { records: [], embeddingMs, kbSearchMs: 0 };
+  }
+
+  // Robust offline metadata extractor fallback if Gemini fails (e.g., rate limits)
+  if (!userMetadata) {
+    console.log('[RAG] Gemini metadata extraction failed/timed out. Using offline regex/keyword extractor.');
+    const ipRegex = /\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b/g;
+    const extractedIps = issueText.match(ipRegex) || [];
+    
+    const extractedApps = [];
+    const lowerIssue = issueText.toLowerCase();
+    for (const app of KNOWN_APPS) {
+      if (lowerIssue.includes(app)) {
+        let name = app;
+        if (app === 'powerbi' || app === 'power bi') name = 'Power BI';
+        if (app === 'vpn') name = 'VPN';
+        if (app === 'chrome') name = 'Chrome';
+        if (app === 'jira') name = 'Jira';
+        if (app === 'outlook') name = 'Outlook';
+        if (app === 'teams') name = 'Teams';
+        if (app.includes('arcon')) name = 'Arcon Authenticator';
+        if (app === 'authenticator' && !extractedApps.includes('Arcon Authenticator')) name = 'Arcon Authenticator';
+        if (!extractedApps.includes(name)) extractedApps.push(name);
+      }
+    }
+    
+    userMetadata = {
+      ipAddresses: extractedIps,
+      applicationNames: extractedApps,
+      urls: [],
+      deviceIds: [],
+      errorMessages: [],
+      problemFamily: '',
+      category: ''
+    };
   }
 
   const t1 = Date.now();
@@ -115,83 +159,112 @@ async function retrieveRelevantResolutions(issueText) {
   for (const kb of allKbs) {
     if (!kb.embedding || kb.embedding.length === 0) continue;
 
-    // 1. Semantic Score (25%)
+    // 1. Semantic Score (35% weight)
     const semanticScore = cosineSimilarity(userEmbedding, kb.embedding);
-    let cosineSimilarityScore = semanticScore * 0.25;
+    let cosineSimilarityScore = semanticScore * 0.35;
     
-    // Default to fallback logic if metadata extraction failed (e.g. rate limit)
-    if (!userMetadata) {
-      let keywordBoost = 0;
-      const lowerQuery = issueText.toLowerCase();
-      const apps = ['powerbi', 'power bi', 'vpn', 'outlook', 'excel', 'word', 'teams', 'wifi', 'internet', 'printer', 'jira', 'confluence', 'bitbucket'];
-      for (const app of apps) {
-        if (lowerQuery.includes(app) && kb.issueTitle.toLowerCase().replace(/\\s+/g, '').includes(app.replace(/\\s+/g, ''))) {
-          keywordBoost = 0.25; break;
+    // Offline / fallback metadata parsing on the KB side for older/unpopulated records
+    const kbIps = kb.ipAddresses?.length ? kb.ipAddresses : (kb.issueTitle.match(/\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b/g) || []);
+    
+    const kbApps = kb.applicationNames?.length ? kb.applicationNames : (() => {
+      const apps = [];
+      const kbText = `${kb.issueTitle} ${kb.rootCause} ${(kb.knownFixSteps || []).join(' ')}`.toLowerCase();
+      for (const app of KNOWN_APPS) {
+        if (kbText.includes(app)) {
+          let name = app;
+          if (app === 'powerbi' || app === 'power bi') name = 'Power BI';
+          if (app === 'vpn') name = 'VPN';
+          if (app === 'chrome') name = 'Chrome';
+          if (app === 'jira') name = 'Jira';
+          if (app === 'outlook') name = 'Outlook';
+          if (app === 'teams') name = 'Teams';
+          if (app.includes('arcon')) name = 'Arcon Authenticator';
+          if (app === 'authenticator' && !apps.includes('Arcon Authenticator')) name = 'Arcon Authenticator';
+          if (!apps.includes(name)) apps.push(name);
         }
       }
-      const finalScore = semanticScore + keywordBoost;
-      if (finalScore >= 0.30) {
-        scoredRecords.push({ kb, score: finalScore, semanticScore, matchedReason: 'Fallback (no metadata)' });
-      }
-      continue;
-    }
+      return apps;
+    })();
 
-    // 2. Entity Match Score (35%)
+    // 2. Entity Match Score (35% weight)
     let entityMatchScore = 0;
     const arrayIntersect = (arr1, arr2) => arr1.some(i => arr2.some(j => i.toLowerCase() === j.toLowerCase()));
     
     const matchedEntities = [];
-    if (userMetadata.ipAddresses?.length && arrayIntersect(userMetadata.ipAddresses, kb.ipAddresses || [])) { entityMatchScore = 0.35; matchedEntities.push('IP'); }
-    else if (userMetadata.urls?.length && arrayIntersect(userMetadata.urls, kb.urls || [])) { entityMatchScore = 0.35; matchedEntities.push('URL'); }
-    else if (userMetadata.deviceIds?.length && arrayIntersect(userMetadata.deviceIds, kb.deviceIds || [])) { entityMatchScore = 0.35; matchedEntities.push('DeviceID'); }
-    else if (userMetadata.applicationNames?.length && arrayIntersect(userMetadata.applicationNames, kb.applicationNames || [])) { 
-      entityMatchScore = 0.25; // Partial boost for app name, requires problem family for full match
+    if (userMetadata.ipAddresses?.length && arrayIntersect(userMetadata.ipAddresses, kbIps)) { 
+      entityMatchScore += 0.45; // Technical key (IP)
+      matchedEntities.push('IP'); 
+    }
+    if (userMetadata.urls?.length && arrayIntersect(userMetadata.urls, kb.urls || [])) { 
+      entityMatchScore += 0.45; // Technical key (URL)
+      matchedEntities.push('URL'); 
+    }
+    if (userMetadata.deviceIds?.length && arrayIntersect(userMetadata.deviceIds, kb.deviceIds || [])) { 
+      entityMatchScore += 0.45; // Technical key (DeviceID)
+      matchedEntities.push('DeviceID'); 
+    }
+    if (userMetadata.applicationNames?.length && arrayIntersect(userMetadata.applicationNames, kbApps)) { 
+      entityMatchScore += 0.40; // Increased boost for application matching
       matchedEntities.push('Application'); 
     }
+    // Cap the entity match score at 0.50 to maintain relative weights
+    entityMatchScore = Math.min(0.50, entityMatchScore);
     
-    // 3. Problem Family Match (25%)
+    // 3. Problem Family Match (25% weight)
     let problemFamilyMatchScore = 0;
-    if (userMetadata.problemFamily && kb.problemFamily && userMetadata.problemFamily.toLowerCase() === kb.problemFamily.toLowerCase()) {
+    const userFamily = userMetadata.problemFamily?.toLowerCase() || '';
+    const kbFamily = kb.problemFamily?.toLowerCase() || '';
+    if (userFamily && kbFamily && userFamily === kbFamily) {
       problemFamilyMatchScore = 0.25;
       matchedEntities.push('ProblemFamily');
     }
 
-    // 4. Category Match (10%)
+    // 4. Category Match (5% weight)
     let categoryMatchScore = 0;
     if (userMetadata.category && kb.category && userMetadata.category.toLowerCase() === kb.category.toLowerCase()) {
-      categoryMatchScore = 0.10;
+      categoryMatchScore = 0.05;
     }
 
-    // 5. Error Message Match (5%)
+    // 5. Error Message Match (5% weight)
     let errorMessageMatchScore = 0;
     if (userMetadata.errorMessages?.length && arrayIntersect(userMetadata.errorMessages, kb.errorMessages || [])) {
       errorMessageMatchScore = 0.05;
       matchedEntities.push('ErrorMessage');
     }
 
+    // High Semantic Similarity Boost (safety net for near-identical texts)
+    let semanticBoost = 0;
+    if (semanticScore >= 0.80) {
+      semanticBoost = 0.35;
+    } else if (semanticScore >= 0.70) {
+      semanticBoost = 0.20;
+    } else if (semanticScore >= 0.60) {
+      semanticBoost = 0.15;
+    } else if (semanticScore >= 0.50) {
+      semanticBoost = 0.10;
+    }
+
     // Combine Scores
-    let finalScore = entityMatchScore + problemFamilyMatchScore + cosineSimilarityScore + categoryMatchScore + errorMessageMatchScore;
+    let finalScore = entityMatchScore + problemFamilyMatchScore + cosineSimilarityScore + categoryMatchScore + errorMessageMatchScore + semanticBoost;
 
     // --- Negative Mismatch Rules (Penalties) ---
     let penalty = 0;
     let penaltyReason = '';
     
-    const appsDiffer = userMetadata.applicationNames?.length && kb.applicationNames?.length && !arrayIntersect(userMetadata.applicationNames, kb.applicationNames);
-    const familiesDiffer = userMetadata.problemFamily && kb.problemFamily && userMetadata.problemFamily.toLowerCase() !== kb.problemFamily.toLowerCase();
+    const appsDiffer = userMetadata.applicationNames?.length && kbApps.length && !arrayIntersect(userMetadata.applicationNames, kbApps);
+    const familiesDiffer = userFamily && kbFamily && userFamily !== kbFamily;
     
     if (appsDiffer && familiesDiffer) {
       penalty += 0.30;
       penaltyReason += 'Apps&FamilyDiffer ';
     }
     
-    const family1 = userMetadata.problemFamily?.toLowerCase() || '';
-    const family2 = kb.problemFamily?.toLowerCase() || '';
-    if ((family1.includes('session') && family2.includes('policy')) || (family1.includes('policy') && family2.includes('session'))) {
+    if ((userFamily.includes('session') && kbFamily.includes('policy')) || (userFamily.includes('policy') && kbFamily.includes('session'))) {
       penalty += 0.40;
       penaltyReason += 'SessionVsPolicy ';
     }
     
-    if ((family1.includes('vpn') && family2.includes('permission')) || (family1.includes('permission') && family2.includes('vpn'))) {
+    if ((userFamily.includes('vpn') && kbFamily.includes('permission')) || (userFamily.includes('permission') && kbFamily.includes('vpn'))) {
       penalty += 0.40;
       penaltyReason += 'NetworkVsLocal ';
     }
@@ -250,13 +323,27 @@ function buildOfflineFallback(records) {
   }
   const cleanSteps = deduplicateSteps(allSteps, 4);
 
+  // Determine if it is a maintenance/vendor/administrative case
+  const textToCheck = `${bestKb.issueTitle} ${bestKb.rootCause || ''}`.toLowerCase();
+  const isMaintenance = /vendor|license|maintenance|upgrade|backend|admin|dependency/i.test(textToCheck);
+
   return {
     ragAnswerAvailable: true,
-    summary: `We found a matching Knowledge Base solution: "${bestKb.issueTitle}".`,
+    kbIssueTitle: bestKb.issueTitle,
+    kbProvidedRootCause: bestKb.rootCause || 'Configuration or policy issue',
+    kbProvidedResolutionSteps: cleanSteps,
+    aiGeneratedSuggestions: [],
+    userActionRequired: isMaintenance ? 'No' : 'Yes',
+    resolutionType: isMaintenance ? 'Maintenance / Vendor / Administrative Resolution' : 'Troubleshooting',
+    aiAddedExtraSteps: false,
+    additionalNote: bestKb.internalNote || '',
+    expectedAvailability: isMaintenance ? 'Refer to description' : '',
+    currentStatus: isMaintenance ? (bestKb.rootCause || 'Maintenance in progress') : '',
     recommendedSteps: cleanSteps.length > 0 ? cleanSteps : ['Contact IT Support for assistance.'],
     possibleRootCauses: [bestKb.rootCause || 'Configuration or policy issue'],
     recommendedTeam: bestKb.assignedTeam?.name || 'Service Desk',
-    confidence: records[0].score >= 0.80 ? 'High' : 'Medium'
+    confidence: records[0].score >= 0.80 ? 'High' : 'Medium',
+    summary: `We found a matching Knowledge Base solution: "${bestKb.issueTitle}".`
   };
 }
 
@@ -270,7 +357,7 @@ async function generateRagAnswer(issueText, context) {
     return null; // Caller will use offline fallback
   }
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
   const systemPrompt = getRagPrompt();
 
   const prompt = `${systemPrompt}
@@ -281,16 +368,21 @@ USER ISSUE:
 RETRIEVED CONTEXT:
 ${context}
 
-Use only the retrieved KB context above. Do not invent unsupported steps. Create one concise user-friendly response. Deduplicate repeated actions. Return maximum 4 recommended steps. Preserve application names, URLs, domains, ports, and error messages from the user issue. Do not suggest unsafe steps like disabling security policy directly. Recommend validation by IT Support if policy/security is involved.
-
 Respond strictly in JSON format:
 {
   "ragAnswerAvailable": true,
-  "summary": "...",
-  "recommendedSteps": ["step1", "step2"],
-  "possibleRootCauses": ["cause1"],
-  "recommendedTeam": "...",
-  "confidence": "High | Medium | Low"
+  "kbIssueTitle": "...",
+  "kbProvidedRootCause": "...",
+  "kbProvidedResolutionSteps": ["step1", "step2"],
+  "aiGeneratedSuggestions": [],
+  "userActionRequired": "Yes | No",
+  "resolutionType": "Troubleshooting | Maintenance / Vendor / Administrative Resolution",
+  "aiAddedExtraSteps": false,
+  "additionalNote": "...",
+  "expectedAvailability": "...",
+  "currentStatus": "...",
+  "confidence": "High | Medium | Low",
+  "recommendedTeam": "..."
 }`;
 
   try {
@@ -305,9 +397,25 @@ Respond strictly in JSON format:
     const parsed = JSON.parse(cleanJsonString(responseText));
 
     // Post-process: deduplicate and limit steps
-    if (Array.isArray(parsed.recommendedSteps)) {
-      parsed.recommendedSteps = deduplicateSteps(parsed.recommendedSteps, 4);
+    if (Array.isArray(parsed.kbProvidedResolutionSteps)) {
+      parsed.kbProvidedResolutionSteps = deduplicateSteps(parsed.kbProvidedResolutionSteps, 4);
     }
+    if (Array.isArray(parsed.aiGeneratedSuggestions)) {
+      parsed.aiGeneratedSuggestions = deduplicateSteps(parsed.aiGeneratedSuggestions, 4);
+    }
+
+    // Ensure fallback properties are defined
+    parsed.aiAddedExtraSteps = parsed.aiAddedExtraSteps || false;
+    parsed.aiGeneratedSuggestions = parsed.aiGeneratedSuggestions || [];
+    parsed.kbProvidedRootCause = parsed.kbProvidedRootCause || '';
+    parsed.kbProvidedResolutionSteps = parsed.kbProvidedResolutionSteps || [];
+    parsed.userActionRequired = parsed.userActionRequired || 'Yes';
+    parsed.resolutionType = parsed.resolutionType || 'Troubleshooting';
+
+    // Legacy fields for backward compatibility
+    parsed.recommendedSteps = parsed.kbProvidedResolutionSteps;
+    parsed.possibleRootCauses = parsed.kbProvidedRootCause ? [parsed.kbProvidedRootCause] : [];
+    parsed.summary = parsed.summary || `We found a matching Knowledge Base solution: "${parsed.kbIssueTitle || 'Details below'}".`;
 
     return parsed;
   } catch (error) {
