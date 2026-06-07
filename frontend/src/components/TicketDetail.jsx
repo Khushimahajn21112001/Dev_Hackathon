@@ -31,8 +31,8 @@ const TicketDetail = ({ ticket, onBack, onUpdate, userRole }) => {
       const fetchData = async () => {
         try {
           const [teamsRes, usersRes] = await Promise.all([
-            axios.get('http://localhost:5000/api/tickets/teams'),
-            axios.get('http://localhost:5000/api/admin/users'),
+            axios.get(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/tickets/teams'),
+            axios.get(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/admin/users'),
           ]);
           setTeams(teamsRes.data.teams || []);
           // Keep only Support Users — they carry a populated team field
@@ -48,7 +48,7 @@ const TicketDetail = ({ ticket, onBack, onUpdate, userRole }) => {
 
   useEffect(() => {
     if (ticket?._id) {
-      axios.get(`http://localhost:5000/api/tickets/${ticket._id}/logs`, {
+      axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/tickets/${ticket._id}/logs`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       })
       .then(res => setLogs(res.data.logs || []))
@@ -58,7 +58,7 @@ const TicketDetail = ({ ticket, onBack, onUpdate, userRole }) => {
 
   const handlePickTicket = async () => {
     try {
-      const response = await axios.patch(`http://localhost:5000/api/tickets/pick/${ticket._id}`, {
+      const response = await axios.patch(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/tickets/pick/${ticket._id}`, {
         supportUserId: userId,
       });
       onUpdate(response.data.ticket);
@@ -70,7 +70,7 @@ const TicketDetail = ({ ticket, onBack, onUpdate, userRole }) => {
   const handleAssignTeam = async (teamId) => {
     setSelectedTeamId(teamId);
     try {
-      const res = await axios.patch(`http://localhost:5000/api/tickets/assign/${ticket._id}`, {
+      const res = await axios.patch(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/tickets/assign/${ticket._id}`, {
         assignedTeamId: teamId
       });
       onUpdate(res.data.ticket);
@@ -81,7 +81,7 @@ const TicketDetail = ({ ticket, onBack, onUpdate, userRole }) => {
 
   const handleAssignAgent = async (agentId) => {
     try {
-      const res = await axios.patch(`http://localhost:5000/api/tickets/assign/${ticket._id}`, {
+      const res = await axios.patch(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/tickets/assign/${ticket._id}`, {
         assignedToId: agentId
       });
       onUpdate(res.data.ticket);
@@ -95,7 +95,7 @@ const TicketDetail = ({ ticket, onBack, onUpdate, userRole }) => {
     setClosing(true);
 
     try {
-      const response = await axios.patch(`http://localhost:5000/api/support/tickets/${ticket._id}/provide-resolution`, {
+      const response = await axios.patch(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/support/tickets/${ticket._id}/provide-resolution`, {
         rootCause,
         resolutionSteps: stepsInput.trim(),
         reusableFix: reusable === 'Yes',
@@ -114,7 +114,7 @@ const TicketDetail = ({ ticket, onBack, onUpdate, userRole }) => {
     e.preventDefault();
     setForceClosing(true);
     try {
-      const response = await axios.patch(`http://localhost:5000/api/admin/tickets/${ticket._id}/force-close`, {
+      const response = await axios.patch(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admin/tickets/${ticket._id}/force-close`, {
         forceCloseReason,
         adminUserId: userId
       }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
@@ -122,7 +122,7 @@ const TicketDetail = ({ ticket, onBack, onUpdate, userRole }) => {
       onUpdate(response.data.ticket);
       
       // Refresh logs
-      axios.get(`http://localhost:5000/api/tickets/${ticket._id}/logs`, {
+      axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/tickets/${ticket._id}/logs`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       }).then(res => setLogs(res.data.logs || []));
     } catch (err) {

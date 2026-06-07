@@ -116,7 +116,7 @@ const RaiseRequest = () => {
   useEffect(() => {
     const fetchTeams = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/corporate/teams', {
+        const res = await axios.get(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/corporate/teams', {
           headers: { Authorization: `Bearer ${token}` }
         });
         setTeams(res.data.teams || []);
@@ -168,7 +168,7 @@ const RaiseRequest = () => {
       console.log('[handleSend] sending payload:', payload);
       
       const res = await axios.post(
-        'http://localhost:5000/api/corporate/analyze-issue',
+        `${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/corporate/analyze-issue',
         payload,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -228,7 +228,7 @@ const RaiseRequest = () => {
     try {
       const ragContextIds = ragData.ragContext ? ragData.ragContext.map(r => r.kbId) : [];
       await axios.post(
-        'http://localhost:5000/api/corporate/rag-success',
+        `${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/corporate/rag-success',
         { userId, issueText: ragData.originalUserInput, ragContextIds, recommendedSteps: ragData.recommendedSteps },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -280,7 +280,7 @@ const RaiseRequest = () => {
       };
 
       const res = await axios.post(
-        'http://localhost:5000/api/corporate/create-ticket-after-rag-failed',
+        `${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/corporate/create-ticket-after-rag-failed',
         payload,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -332,7 +332,7 @@ const RaiseRequest = () => {
       };
       console.log('[handleCreateTicket] sending payload:', payload);
       const res = await axios.post(
-        'http://localhost:5000/api/corporate/create-ticket',
+        `${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/corporate/create-ticket',
         payload,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -402,7 +402,7 @@ const RaiseRequest = () => {
 
     try {
       const res = await axios.post(
-        'http://localhost:5000/api/corporate/reanalyze-ticket-preview',
+        `${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/corporate/reanalyze-ticket-preview',
         {
           userId,
           originalUserInput: editData.originalUserInput,
@@ -483,7 +483,7 @@ const RaiseRequest = () => {
     setIsLoading(true);
     try {
       const res = await axios.post(
-        'http://localhost:5000/api/corporate/analyze-issue',
+        `${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/corporate/analyze-issue',
         { userId, issueText: duplicateData.originalUserInput || 'Re-raise request', forceDuplicate: true },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -517,7 +517,7 @@ const RaiseRequest = () => {
     setHasSelectedOption(true);
     let isActive = false;
     try {
-      const res = await axios.get('http://localhost:5000/api/access-requests/module-status');
+      const res = await axios.get(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/access-requests/module-status');
       isActive = res.data.active;
       setAccessModuleActive(isActive);
     } catch (_) {

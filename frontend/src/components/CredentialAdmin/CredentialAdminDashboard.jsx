@@ -42,7 +42,7 @@ const CredentialAdminDashboard = () => {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const res = await axios.get('http://localhost:5000/api/access-requests');
+      const res = await axios.get(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/access-requests');
       const all = res.data.requests || [];
       const c = {};
       TABS.forEach(t => { c[t] = all.filter(r => r.status === t).length; });
@@ -73,7 +73,7 @@ const CredentialAdminDashboard = () => {
     if (!selected) return;
     setSubmitting(true);
     try {
-      const endpoint = `http://localhost:5000/api/access-requests/${selected._id}/${actionModal}`;
+      const endpoint = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/access-requests/${selected._id}/${actionModal}`;
       await axios.patch(endpoint, {
         handledBy: userId,
         adminRemarks: actionForm.adminRemarks,

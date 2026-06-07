@@ -16,7 +16,7 @@ const CorporateDashboard = () => {
     const userId = localStorage.getItem('userId');
     const role = localStorage.getItem('role');
     try {
-      const response = await axios.get('http://localhost:5000/api/tickets', {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/tickets', {
         params: { role, userId },
       });
       setTickets(response.data.tickets);

@@ -22,7 +22,7 @@ const IssueAnalyzer = ({ onTicketCreated }) => {
     const userId = localStorage.getItem('userId');
 
     try {
-      const response = await axios.post('http://localhost:5000/api/issues/analyze', {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/issues/analyze', {
         description,
         raisedBy: userId,
       });
@@ -51,7 +51,7 @@ const IssueAnalyzer = ({ onTicketCreated }) => {
     const userId = localStorage.getItem('userId');
     try {
       // Find category based on result or default
-      const response = await axios.post('http://localhost:5000/api/tickets/create', {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/tickets/create', {
         raisedBy: userId,
         issueDescription: description,
         category: result?.assignedTeam || 'Generic',

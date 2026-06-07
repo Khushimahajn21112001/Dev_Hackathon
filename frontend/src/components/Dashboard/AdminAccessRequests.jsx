@@ -42,8 +42,8 @@ const AdminAccessRequests = () => {
     setLoading(true);
     try {
       const [reqRes, usersRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/access-requests'),
-        axios.get('http://localhost:5000/api/admin/users')
+        axios.get(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/access-requests'),
+        axios.get(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/admin/users')
       ]);
       const all = reqRes.data.requests || [];
       const c = {};
@@ -78,7 +78,7 @@ const AdminAccessRequests = () => {
     if (!selected) return;
     setSubmitting(true);
     try {
-      let endpoint = `http://localhost:5000/api/access-requests/${selected._id}/${actionModal}`;
+      let endpoint = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/access-requests/${selected._id}/${actionModal}`;
       let payload = {};
 
         payload = {

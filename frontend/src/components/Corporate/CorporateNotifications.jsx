@@ -20,7 +20,7 @@ const CorporateNotifications = () => {
       setError(null);
       const token = localStorage.getItem('token');
       const res = await axios.get(
-        `http://localhost:5000/api/corporate/notifications/${userId}`,
+        `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/corporate/notifications/${userId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setNotifications(res.data.notifications || res.data || []);

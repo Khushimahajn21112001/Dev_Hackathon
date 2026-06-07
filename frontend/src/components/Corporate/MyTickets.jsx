@@ -70,7 +70,7 @@ const MyTickets = () => {
       params.append('limit', limit);
 
       const res = await axios.get(
-        `http://localhost:5000/api/corporate/my-tickets/${userId}?${params.toString()}`,
+        `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/corporate/my-tickets/${userId}?${params.toString()}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -89,7 +89,7 @@ const MyTickets = () => {
   const handleConfirmResolution = async (ticketId) => {
     try {
       const response = await axios.patch(
-        `http://localhost:5000/api/corporate/tickets/${ticketId}/confirm-resolution`,
+        `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/corporate/tickets/${ticketId}/confirm-resolution`,
         { userId },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -110,7 +110,7 @@ const MyTickets = () => {
     try {
       setReopenError('');
       const response = await axios.patch(
-        `http://localhost:5000/api/corporate/tickets/${selectedTicketForReopen._id}/reopen`,
+        `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/corporate/tickets/${selectedTicketForReopen._id}/reopen`,
         { userId, remarks: reopenRemarks },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -130,7 +130,7 @@ const MyTickets = () => {
     if (!window.confirm('Are you sure you want to delete this ticket? This action cannot be undone.')) return;
     try {
       const response = await axios.delete(
-        `http://localhost:5000/api/corporate/tickets/${ticketId}`,
+        `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/corporate/tickets/${ticketId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (response.data.success) {

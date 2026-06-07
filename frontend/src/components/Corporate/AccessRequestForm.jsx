@@ -50,7 +50,7 @@ const AccessRequestForm = ({ onClose, onSuccess }) => {
     setSubmitting(true);
     setError('');
     try {
-      const res = await axios.post('http://localhost:5000/api/access-requests', {
+      const res = await axios.post(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/access-requests', {
         ...form,
         raisedBy: userId,
       });

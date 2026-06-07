@@ -37,7 +37,7 @@ const TeamLeadDashboard = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await axios.get(`http://localhost:5000/api/team-lead/tickets?userId=${userId}`);
+      const response = await axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/team-lead/tickets?userId=${userId}`);
       setTickets(response.data.tickets || []);
       setTeamMembers(response.data.teamMembers || []);
       setTeam(response.data.team || null);

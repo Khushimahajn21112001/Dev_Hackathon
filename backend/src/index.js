@@ -20,6 +20,11 @@ app.use('/api/team-lead', require('./routes/teamLeadRoutes'));
 app.use('/api/support', require('./routes/supportRoutes'));
 app.use('/api/access-requests', require('./routes/accessRequestRoutes'));
 
+// Health check route
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', message: 'Backend running' });
+});
+
 // Debug endpoints
 app.get('/api/debug/test-gemini', async (req, res) => {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -56,10 +61,19 @@ app.get('/api/debug/test-gemini', async (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-connectDB().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+// Export the app for Vercel serverless environments
+module.exports = app;
+
+// Only listen on a port if not running in a Vercel serverless environment
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  connectDB().then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }).catch(err => {
+    console.error('Failed to start server due to DB error', err);
   });
-}).catch(err => {
-  console.error('Failed to start server due to DB error', err);
-});
+} else {
+  // For Vercel, just connect to the DB (it will connect on each cold start)
+  connectDB().catch(console.error);
+}

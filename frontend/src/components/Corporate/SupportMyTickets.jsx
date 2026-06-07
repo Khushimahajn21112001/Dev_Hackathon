@@ -35,7 +35,7 @@ const SupportMyTickets = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await axios.get(`http://localhost:5000/api/support/tickets?userId=${userId}`);
+      const response = await axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/support/tickets?userId=${userId}`);
       setTickets(response.data.tickets || []);
     } catch (err) {
       console.error('Error fetching support tickets:', err);
@@ -54,7 +54,7 @@ const SupportMyTickets = () => {
       setError('');
       setSuccess('');
       const response = await axios.patch(
-        `http://localhost:5000/api/support/tickets/${ticketId}/start`,
+        `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/support/tickets/${ticketId}/start`,
         { supportUserId: userId }
       );
 
@@ -85,7 +85,7 @@ const SupportMyTickets = () => {
       setError('');
       setSuccess('');
       const response = await axios.patch(
-        `http://localhost:5000/api/support/tickets/${selectedTicket._id}/provide-resolution`,
+        `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/support/tickets/${selectedTicket._id}/provide-resolution`,
         { rootCause, resolutionSteps, internalNote, reusableFix, supportUserId: userId }
       );
 

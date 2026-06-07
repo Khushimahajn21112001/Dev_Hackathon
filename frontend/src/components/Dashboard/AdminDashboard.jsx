@@ -54,8 +54,8 @@ const AdminDashboard = () => {
     setLoading(true);
     try {
       const [ticketsRes, teamsRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/tickets', { params: { role: 'Admin' } }),
-        axios.get('http://localhost:5000/api/tickets/teams')
+        axios.get(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/tickets', { params: { role: 'Admin' } }),
+        axios.get(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/tickets/teams')
       ]);
 
       const allTickets = ticketsRes.data.tickets || [];

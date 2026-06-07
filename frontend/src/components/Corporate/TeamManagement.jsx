@@ -50,9 +50,9 @@ const TeamManagement = () => {
     setError('');
     try {
       const [teamsRes, leadsRes, supportRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/tickets/teams'),
-        axios.get('http://localhost:5000/api/tickets/team-leads'),
-        axios.get('http://localhost:5000/api/tickets/support-users')
+        axios.get(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/tickets/teams'),
+        axios.get(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/tickets/team-leads'),
+        axios.get(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/tickets/support-users')
       ]);
       setTeams(teamsRes.data.teams || []);
       setTeamLeads(leadsRes.data.leads || []);
@@ -72,7 +72,7 @@ const TeamManagement = () => {
     try {
       setError('');
       setSuccess('');
-      const response = await axios.post('http://localhost:5000/api/tickets/teams', {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/tickets/teams', {
         name,
         description,
         teamLead: teamLead || null,
@@ -112,7 +112,7 @@ const TeamManagement = () => {
     try {
       setError('');
       setSuccess('');
-      const response = await axios.put(`http://localhost:5000/api/tickets/teams/${editingTeam._id}`, {
+      const response = await axios.put(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/tickets/teams/${editingTeam._id}`, {
         name: editName,
         description: editDescription,
         teamLead: editTeamLead || null,
@@ -136,7 +136,7 @@ const TeamManagement = () => {
   const handleToggleStatus = async (team) => {
     const newStatus = team.status === 'Active' ? 'Inactive' : 'Active';
     try {
-      const response = await axios.patch(`http://localhost:5000/api/tickets/teams/${team._id}/status`, {
+      const response = await axios.patch(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/tickets/teams/${team._id}/status`, {
         status: newStatus
       });
       if (response.data.success) {
@@ -153,7 +153,7 @@ const TeamManagement = () => {
       return;
     }
     try {
-      const response = await axios.delete(`http://localhost:5000/api/tickets/teams/${teamId}`);
+      const response = await axios.delete(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/tickets/teams/${teamId}`);
       if (response.data.success) {
         setSuccess('Division deleted successfully!');
         fetchData();

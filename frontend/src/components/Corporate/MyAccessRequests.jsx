@@ -29,8 +29,8 @@ const MyAccessRequests = () => {
     setLoading(true);
     try {
       const [reqRes, modRes] = await Promise.all([
-        axios.get(`http://localhost:5000/api/access-requests/my/${userId}`),
-        axios.get('http://localhost:5000/api/access-requests/module-status'),
+        axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/access-requests/my/${userId}`),
+        axios.get(`${import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL || "http://localhost:5000"}` + ""}` + '/api/access-requests/module-status'),
       ]);
       setRequests(reqRes.data.requests || []);
       setModuleActive(modRes.data.active);
